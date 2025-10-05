@@ -25,8 +25,8 @@ class HeatPumpModbusClient:
 
     INPUT_ERROR_CODE = 0         # 30001: Error Code
     INPUT_OPERATING_MODE = 1     # 30002: ODU Operating Cycle
-    INPUT_FLOW_TEMP = 2          # 30003: Water Inlet Temperature
-    INPUT_RETURN_TEMP = 3        # 30004: Water Outlet Temperature
+    INPUT_RETURN_TEMP = 2        # 30003: Water Inlet Temperature (colder, return from system)
+    INPUT_FLOW_TEMP = 3          # 30004: Water Outlet Temperature (hotter, flow to system)
     INPUT_FLOW_RATE = 8          # 30009: Current Flow Rate
     INPUT_OUTDOOR_TEMP = 12      # 30013: Outdoor Air Temperature
     INPUT_WATER_PRESSURE = 13    # 30014: Water Pressure

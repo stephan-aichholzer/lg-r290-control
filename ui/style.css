@@ -156,6 +156,13 @@ section h2 {
     margin-bottom: 10px;
 }
 
+.gauge-subtitle {
+    font-size: 12px;
+    color: #6b7280;
+    margin-top: 5px;
+    font-style: italic;
+}
+
 .gauge {
     position: relative;
     width: 200px;

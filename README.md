@@ -111,8 +111,8 @@ Key registers implemented:
 |------|---------|-------------|------|
 | Coil | 00001 | Power ON/OFF | Boolean |
 | Discrete | 10004 | Compressor Status | Boolean |
-| Input | 30003 | Flow Temperature | 0.1°C |
-| Input | 30004 | Return Temperature | 0.1°C |
+| Input | 30003 | Return Temp (Inlet - colder) | 0.1°C |
+| Input | 30004 | Flow Temp (Outlet - hotter) | 0.1°C |
 | Input | 30009 | Flow Rate | 0.1 LPM |
 | Holding | 40003 | Target Temperature | 0.1°C |
 

@@ -68,17 +68,17 @@
     },
     "30003": {
       "address": 2,
-      "description": "Water Inlet Temperature (Flow)",
-      "value": 350,
+      "description": "Water Inlet Temperature (Return - colder)",
+      "value": 300,
       "unit": "0.1°C",
-      "comment": "350 = 35.0°C"
+      "comment": "300 = 30.0°C - water returning from heating system"
     },
     "30004": {
       "address": 3,
-      "description": "Water Outlet Temperature (Return)",
-      "value": 300,
+      "description": "Water Outlet Temperature (Flow - hotter)",
+      "value": 450,
       "unit": "0.1°C",
-      "comment": "300 = 30.0°C"
+      "comment": "450 = 45.0°C - heated water going to heating system"
     },
     "30009": {
       "address": 8,

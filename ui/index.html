@@ -33,7 +33,7 @@
                 <h2>Temperature Monitoring</h2>
                 <div class="gauge-grid">
                     <div class="gauge-container">
-                        <div class="gauge-label">Flow Temperature</div>
+                        <div class="gauge-label">Flow Temperature (Outlet)</div>
                         <div class="gauge">
                             <svg viewBox="0 0 200 120" class="gauge-svg">
                                 <path class="gauge-bg" d="M 20 100 A 80 80 0 0 1 180 100"></path>
@@ -41,10 +41,11 @@
                             </svg>
                             <div class="gauge-value" id="flow-temp-value">0.0°C</div>
                         </div>
+                        <div class="gauge-subtitle">Hotter - to system</div>
                     </div>
 
                     <div class="gauge-container">
-                        <div class="gauge-label">Return Temperature</div>
+                        <div class="gauge-label">Return Temperature (Inlet)</div>
                         <div class="gauge">
                             <svg viewBox="0 0 200 120" class="gauge-svg">
                                 <path class="gauge-bg" d="M 20 100 A 80 80 0 0 1 180 100"></path>
@@ -52,6 +53,7 @@
                             </svg>
                             <div class="gauge-value" id="return-temp-value">0.0°C</div>
                         </div>
+                        <div class="gauge-subtitle">Colder - from system</div>
                     </div>
 
                     <div class="gauge-container">

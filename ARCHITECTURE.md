@@ -228,8 +228,8 @@ The LG R290 Heat Pump Control System is a containerized, microservices-based arc
 **Sensor Registers**:
 - Input 0 (30001): Error Code
 - Input 1 (30002): Operating Mode (0=Standby, 1=Cooling, 2=Heating)
-- Input 2 (30003): Flow Temperature (0.1°C × 10)
-- Input 3 (30004): Return Temperature (0.1°C × 10)
+- Input 2 (30003): Return Temperature / Inlet (0.1°C × 10) - colder water from system
+- Input 3 (30004): Flow Temperature / Outlet (0.1°C × 10) - hotter water to system
 - Input 8 (30009): Flow Rate (0.1 LPM × 10)
 - Input 12 (30013): Outdoor Temperature (0.1°C × 10)
 - Input 13 (30014): Water Pressure (0.1 bar × 10)
