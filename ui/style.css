@@ -1,0 +1,305 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    padding: 20px;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+    overflow: hidden;
+}
+
+header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 30px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+header h1 {
+    font-size: 28px;
+    font-weight: 600;
+}
+
+.status-badge {
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.status-badge.connected {
+    background: #10b981;
+}
+
+.status-badge.disconnected {
+    background: #ef4444;
+}
+
+main {
+    padding: 30px;
+}
+
+section {
+    margin-bottom: 30px;
+    padding: 20px;
+    background: #f9fafb;
+    border-radius: 8px;
+}
+
+section h2 {
+    margin-bottom: 20px;
+    color: #374151;
+    font-size: 20px;
+}
+
+/* Power Control */
+.power-controls {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 15px;
+}
+
+.btn {
+    padding: 15px 30px;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.btn-on {
+    background: #10b981;
+    color: white;
+}
+
+.btn-on:hover {
+    background: #059669;
+}
+
+.btn-off {
+    background: #ef4444;
+    color: white;
+}
+
+.btn-off:hover {
+    background: #dc2626;
+}
+
+.btn-primary {
+    background: #667eea;
+    color: white;
+}
+
+.btn-primary:hover {
+    background: #5568d3;
+}
+
+.status-indicator {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    font-size: 16px;
+}
+
+.status-indicator .label {
+    font-weight: 600;
+    color: #6b7280;
+}
+
+.status-indicator .value {
+    font-weight: 700;
+    color: #374151;
+}
+
+.status-indicator .badge {
+    padding: 5px 12px;
+    background: #e5e7eb;
+    border-radius: 12px;
+    font-size: 14px;
+}
+
+/* Gauges */
+.gauge-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+}
+
+.gauge-container {
+    text-align: center;
+}
+
+.gauge-label {
+    font-weight: 600;
+    color: #374151;
+    margin-bottom: 10px;
+}
+
+.gauge {
+    position: relative;
+    width: 200px;
+    margin: 0 auto;
+}
+
+.gauge-svg {
+    width: 100%;
+    height: auto;
+}
+
+.gauge-bg {
+    fill: none;
+    stroke: #e5e7eb;
+    stroke-width: 12;
+    stroke-linecap: round;
+}
+
+.gauge-fill {
+    fill: none;
+    stroke: #667eea;
+    stroke-width: 12;
+    stroke-linecap: round;
+    transition: stroke-dashoffset 0.5s ease;
+}
+
+.gauge-value {
+    position: absolute;
+    top: 60%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 24px;
+    font-weight: 700;
+    color: #374151;
+}
+
+/* Metrics */
+.metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+}
+
+.metric-card {
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    text-align: center;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.metric-label {
+    font-size: 14px;
+    color: #6b7280;
+    margin-bottom: 10px;
+}
+
+.metric-value {
+    font-size: 24px;
+    font-weight: 700;
+    color: #374151;
+}
+
+/* Setpoint Control */
+.slider-container {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.slider-container label {
+    font-size: 16px;
+    font-weight: 600;
+    color: #374151;
+}
+
+#temp-slider {
+    width: 100%;
+    height: 8px;
+    border-radius: 5px;
+    background: #e5e7eb;
+    outline: none;
+    -webkit-appearance: none;
+}
+
+#temp-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: #667eea;
+    cursor: pointer;
+}
+
+#temp-slider::-moz-range-thumb {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: #667eea;
+    cursor: pointer;
+    border: none;
+}
+
+/* Error Section */
+.error-section {
+    background: #fee2e2;
+    border-left: 4px solid #ef4444;
+}
+
+.error-box {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: #991b1b;
+    font-weight: 600;
+}
+
+.error-icon {
+    font-size: 24px;
+}
+
+/* Footer */
+footer {
+    background: #f3f4f6;
+    padding: 20px 30px;
+    text-align: center;
+    color: #6b7280;
+    font-size: 14px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    header {
+        flex-direction: column;
+        gap: 15px;
+    }
+
+    .gauge-grid,
+    .metrics-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .power-controls {
+        flex-direction: column;
+    }
+}

@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  heatpump-mock:
+    build:
+      context: ./mock
+      dockerfile: Dockerfile
+    container_name: lg_r290_mock
+    ports:
+      - "5020:502"
+    volumes:
+      - ./mock/registers.json:/app/registers.json
+    networks:
+      - heatpump-net
+    restart: unless-stopped
+
+  heatpump-service:
+    build:
+      context: ./service
+      dockerfile: Dockerfile
+    container_name: lg_r290_service
+    ports:
+      - "8002:8000"
+    environment:
+      - MODBUS_HOST=${MODBUS_HOST:-heatpump-mock}
+      - MODBUS_PORT=${MODBUS_PORT:-502}
+      - MODBUS_UNIT_ID=${MODBUS_UNIT_ID:-1}
+      - POLL_INTERVAL=${POLL_INTERVAL:-5}
+    depends_on:
+      - heatpump-mock
+    networks:
+      - heatpump-net
+    restart: unless-stopped
+
+  heatpump-ui:
+    build:
+      context: ./ui
+      dockerfile: Dockerfile
+    container_name: lg_r290_ui
+    ports:
+      - "8080:80"
+    environment:
+      - API_URL=http://localhost:8002
+    depends_on:
+      - heatpump-service
+    networks:
+      - heatpump-net
+    restart: unless-stopped
+
+networks:
+  heatpump-net:
+    driver: bridge

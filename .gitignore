@@ -1,0 +1,27 @@
+# Environment
+.env
+*.log
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Docker
+*.pid
+
+# OS
+.DS_Store
+Thumbs.db
