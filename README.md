@@ -2,13 +2,28 @@
 
 A Docker-based software stack for interfacing with an LG R290 7kW heat pump via Modbus TCP protocol.
 
+**Version**: v0.1 (Working Draft)
+**Platform**: Raspberry Pi 5 / Linux
+**Status**: Ready for testing with real hardware
+
 ## Features
 
+### Core Functionality
 - **Mock Modbus Server**: JSON-backed Modbus TCP server for development and testing
 - **FastAPI Backend**: RESTful API for heat pump monitoring and control
-- **HTML5 Web UI**: Responsive dashboard with gauges, sliders, and real-time monitoring
-- **Switchable Architecture**: Easy transition from mock to real hardware
+- **Responsive Web UI**: Dark mode HTML5 interface optimized for desktop and mobile kiosk mode
+- **Switchable Architecture**: Easy transition from mock to real hardware via configuration
 - **Containerized Deployment**: Docker Compose orchestration for all services
+
+### Web UI Features
+- **Dark Mode Design**: Pure black background with high contrast for OLED displays
+- **Dual Layout Support**:
+  - Desktop: Traditional vertical layout with full-sized gauges
+  - Landscape (Mobile): Compact 3-column layout, everything fits on one screen
+- **Real-time Monitoring**: Temperature gauges, flow rate, pressure, operating mode
+- **Control Interface**: Power ON/OFF, temperature setpoint slider
+- **Mobile Optimized**: Kiosk mode ready for Android smartphones in landscape orientation
+- **Network Access**: Dynamic hostname detection works from any device on local network
 
 ## Architecture
 
@@ -281,6 +296,41 @@ The system is designed for easy extension:
 - Notifications: Integrate MQTT or webhook notifications
 - Home automation: Add MQTT bridge for Home Assistant integration
 
+## Version History
+
+### v0.1 - Working Draft (2025-10-05)
+
+**Status**: Ready for testing with real hardware
+
+**What Works:**
+- ✅ Complete Docker stack with mock server, API, and UI
+- ✅ Power ON/OFF control
+- ✅ Temperature monitoring (flow, return, outdoor)
+- ✅ System metrics (flow rate, pressure, operating mode)
+- ✅ Temperature setpoint control
+- ✅ Dark mode responsive UI (desktop + mobile landscape)
+- ✅ Network-accessible from any device on LAN
+- ✅ Correct flow/return temperature mapping
+
+**Known Limitations:**
+- ⚠️ Mock server: Writes not persisted to JSON file (acceptable for testing)
+- ⚠️ Mock server: Some register values read as zero due to Modbus addressing offset
+  - This is a mock-only issue and won't affect real hardware
+- ⚠️ API port changed to 8002 (to avoid conflict with Portainer on 8000)
+
+**Testing Status:**
+- ✅ Tested with mock server - basic functionality verified
+- ⚠️ Not yet tested with real LG R290 hardware
+- ✅ UI tested on desktop browsers
+- ⚠️ Mobile kiosk mode not yet tested on Android
+
+**Next Steps:**
+1. Test with real LG R290 hardware via Waveshare gateway
+2. Verify all register readings with actual heat pump
+3. Test mobile kiosk mode on Android smartphone
+4. Add data logging if needed
+5. Fine-tune UI based on real-world usage
+
 ## License
 
 This project is provided as-is for interfacing with LG R290 heat pumps.
@@ -290,3 +340,11 @@ This project is provided as-is for interfacing with LG R290 heat pumps.
 - LG R290 Modbus Register Documentation: `LG_R290_register.pdf`
 - pymodbus Documentation: https://pymodbus.readthedocs.io/
 - FastAPI Documentation: https://fastapi.tiangolo.com/
+
+## Support
+
+For issues or questions:
+- Check the [ARCHITECTURE.md](ARCHITECTURE.md) for system design details
+- Review logs: `docker-compose logs -f`
+- Verify configuration in `.env` file
+- Ensure DIP switches on LG R290 are set correctly (SW1-1: ON, SW1-2: ON)
