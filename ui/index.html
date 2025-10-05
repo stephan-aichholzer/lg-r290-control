@@ -2,19 +2,22 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LG R290 Heat Pump Control</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <title>LG R290 Heat Pump</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>LG R290 Heat Pump Control</h1>
+            <h1>LG R290 Heat Pump</h1>
             <div id="connection-status" class="status-badge disconnected">Disconnected</div>
         </header>
 
         <main>
-            <!-- Power Control Section -->
+            <!-- Left Panel: Power Control -->
             <section class="control-panel">
                 <h2>Power Control</h2>
                 <div class="power-controls">
@@ -22,18 +25,18 @@
                     <button id="btn-power-off" class="btn btn-off">OFF</button>
                 </div>
                 <div class="status-indicator">
-                    <span class="label">Status:</span>
+                    <span class="label">Status</span>
                     <span id="power-status" class="value">OFF</span>
                     <span id="compressor-status" class="badge">Compressor: OFF</span>
                 </div>
             </section>
 
-            <!-- Temperature Gauges -->
+            <!-- Center Panel: Temperature Gauges -->
             <section class="gauges">
                 <h2>Temperature Monitoring</h2>
                 <div class="gauge-grid">
                     <div class="gauge-container">
-                        <div class="gauge-label">Flow Temperature (Outlet)</div>
+                        <div class="gauge-label">Flow (Outlet)</div>
                         <div class="gauge">
                             <svg viewBox="0 0 200 120" class="gauge-svg">
                                 <path class="gauge-bg" d="M 20 100 A 80 80 0 0 1 180 100"></path>
@@ -41,11 +44,11 @@
                             </svg>
                             <div class="gauge-value" id="flow-temp-value">0.0°C</div>
                         </div>
-                        <div class="gauge-subtitle">Hotter - to system</div>
+                        <div class="gauge-subtitle">Hotter</div>
                     </div>
 
                     <div class="gauge-container">
-                        <div class="gauge-label">Return Temperature (Inlet)</div>
+                        <div class="gauge-label">Return (Inlet)</div>
                         <div class="gauge">
                             <svg viewBox="0 0 200 120" class="gauge-svg">
                                 <path class="gauge-bg" d="M 20 100 A 80 80 0 0 1 180 100"></path>
@@ -53,11 +56,11 @@
                             </svg>
                             <div class="gauge-value" id="return-temp-value">0.0°C</div>
                         </div>
-                        <div class="gauge-subtitle">Colder - from system</div>
+                        <div class="gauge-subtitle">Colder</div>
                     </div>
 
                     <div class="gauge-container">
-                        <div class="gauge-label">Outdoor Temperature</div>
+                        <div class="gauge-label">Outdoor</div>
                         <div class="gauge">
                             <svg viewBox="0 0 200 120" class="gauge-svg">
                                 <path class="gauge-bg" d="M 20 100 A 80 80 0 0 1 180 100"></path>
@@ -69,43 +72,46 @@
                 </div>
             </section>
 
-            <!-- Flow Rate and Pressure -->
-            <section class="metrics">
-                <h2>System Metrics</h2>
-                <div class="metrics-grid">
-                    <div class="metric-card">
-                        <div class="metric-label">Flow Rate</div>
-                        <div class="metric-value" id="flow-rate">0.0 L/min</div>
+            <!-- Right Panel: Metrics and Controls -->
+            <div class="right-panel">
+                <!-- System Metrics -->
+                <section class="metrics">
+                    <h2>System Metrics</h2>
+                    <div class="metrics-grid">
+                        <div class="metric-card">
+                            <div class="metric-label">Flow Rate</div>
+                            <div class="metric-value" id="flow-rate">0.0 L/m</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-label">Pressure</div>
+                            <div class="metric-value" id="water-pressure">0.0 bar</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-label">Mode</div>
+                            <div class="metric-value" id="operating-mode">--</div>
+                        </div>
                     </div>
-                    <div class="metric-card">
-                        <div class="metric-label">Water Pressure</div>
-                        <div class="metric-value" id="water-pressure">0.0 bar</div>
-                    </div>
-                    <div class="metric-card">
-                        <div class="metric-label">Operating Mode</div>
-                        <div class="metric-value" id="operating-mode">Standby</div>
-                    </div>
-                </div>
-            </section>
+                </section>
 
-            <!-- Temperature Setpoint Control -->
-            <section class="setpoint-control">
-                <h2>Temperature Setpoint</h2>
-                <div class="slider-container">
-                    <label for="temp-slider">Target Temperature: <span id="temp-slider-value">45.0</span>°C</label>
-                    <input type="range" id="temp-slider" min="20" max="60" step="0.5" value="45">
-                    <button id="btn-set-temp" class="btn btn-primary">Set Temperature</button>
-                </div>
-            </section>
+                <!-- Temperature Setpoint -->
+                <section class="setpoint-control">
+                    <h2>Target Temperature</h2>
+                    <div class="slider-container">
+                        <label for="temp-slider">Setpoint: <span id="temp-slider-value">45.0</span>°C</label>
+                        <input type="range" id="temp-slider" min="20" max="60" step="0.5" value="45">
+                        <button id="btn-set-temp" class="btn btn-primary">Set Temperature</button>
+                    </div>
+                </section>
 
-            <!-- Error Status -->
-            <section class="error-section" id="error-section" style="display: none;">
-                <h2>Error Status</h2>
-                <div class="error-box">
-                    <span class="error-icon">⚠</span>
-                    <span id="error-message">Error Code: 0</span>
-                </div>
-            </section>
+                <!-- Error Status -->
+                <section class="error-section" id="error-section" style="display: none;">
+                    <h2>Error Status</h2>
+                    <div class="error-box">
+                        <span class="error-icon">⚠</span>
+                        <span id="error-message">Error Code: 0</span>
+                    </div>
+                </section>
+            </div>
         </main>
 
         <footer>
