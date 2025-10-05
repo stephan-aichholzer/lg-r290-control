@@ -113,27 +113,67 @@ class CustomModbusSlaveContext(ModbusSlaveContext):
         self.datastore = datastore
 
     def setValues(self, fx_code, address, values):
-        """Override setValues to sync writes to JSON file."""
+        """Override setValues to sync writes to JSON file.
+
+        Note: Account for +1 offset in data blocks due to Modbus addressing.
+        """
         super().setValues(fx_code, address, values)
+
+        logger.info(f"setValues called: fx_code={fx_code}, address={address}, values={values}")
 
         # Sync back to JSON for coils (fx=1) and holding registers (fx=3)
         if fx_code == 1:  # Coils
             for reg_id, reg_data in self.datastore.data['coils'].items():
                 if reg_data.get('writable', False):
-                    addr = reg_data['address']
-                    if address <= addr < address + len(values):
-                        reg_data['value'] = bool(values[addr - address])
-                        logger.info(f"Coil {reg_id} (addr={addr}) updated to {reg_data['value']}")
+                    # JSON address maps to internal array index + 1 due to offset
+                    json_addr = reg_data['address']
+                    if address <= json_addr < address + len(values):
+                        # Read from the offset position in the values array
+                        array_offset = json_addr - address
+                        reg_data['value'] = bool(values[array_offset])
+                        logger.info(f"Coil {reg_id} (addr={json_addr}) updated to {reg_data['value']}")
             self.datastore.save_registers()
 
         elif fx_code == 3:  # Holding Registers
             for reg_id, reg_data in self.datastore.data['holding_registers'].items():
                 if reg_data.get('writable', False):
-                    addr = reg_data['address']
-                    if address <= addr < address + len(values):
-                        reg_data['value'] = int(values[addr - address])
-                        logger.info(f"Holding Register {reg_id} (addr={addr}) updated to {reg_data['value']}")
+                    # JSON address maps to internal array index + 1 due to offset
+                    json_addr = reg_data['address']
+                    if address <= json_addr < address + len(values):
+                        # Read from the offset position in the values array
+                        array_offset = json_addr - address
+                        reg_data['value'] = int(values[array_offset])
+                        logger.info(f"Holding Register {reg_id} (addr={json_addr}) updated to {reg_data['value']}")
             self.datastore.save_registers()
+
+
+async def sync_datastore_to_json(context, datastore: JSONBackedDataStore, interval: int = 5):
+    """Periodically sync datastore values back to JSON file."""
+    while True:
+        await asyncio.sleep(interval)
+        try:
+            # Read current values from Modbus datastore and update JSON
+            slave = context[1]  # Get slave context for unit ID 1
+
+            # Sync coils
+            for reg_id, reg_data in datastore.data['coils'].items():
+                addr = reg_data['address'] + 1  # Account for +1 offset
+                value = slave.getValues(1, addr, 1)[0]  # fx=1 for coils
+                if reg_data['value'] != bool(value):
+                    reg_data['value'] = bool(value)
+                    logger.info(f"Synced coil {reg_id} (addr={addr-1}): {reg_data['value']}")
+
+            # Sync holding registers
+            for reg_id, reg_data in datastore.data['holding_registers'].items():
+                addr = reg_data['address'] + 1  # Account for +1 offset
+                value = slave.getValues(3, addr, 1)[0]  # fx=3 for holding registers
+                if reg_data['value'] != int(value):
+                    reg_data['value'] = int(value)
+                    logger.info(f"Synced holding register {reg_id} (addr={addr-1}): {reg_data['value']}")
+
+            datastore.save_registers()
+        except Exception as e:
+            logger.error(f"Error syncing datastore: {e}")
 
 
 async def run_server(host: str = "0.0.0.0", port: int = 502):
@@ -171,6 +211,10 @@ async def run_server(host: str = "0.0.0.0", port: int = 502):
 
     logger.info(f"Starting Modbus TCP Mock Server on {host}:{port}")
     logger.info("Ready to accept connections...")
+
+    # Start background sync task
+    asyncio.create_task(sync_datastore_to_json(context, datastore, interval=5))
+    logger.info("Started datastore sync task (interval: 5s)")
 
     await StartAsyncTcpServer(
         context=context,

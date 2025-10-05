@@ -214,7 +214,17 @@ docker-compose build heatpump-service
 
 ### Editing Mock Register Values
 
-The mock server uses `mock/registers.json` for register values. Edit this file while the container is running, and changes will be reflected immediately (for reads). For writes, the mock server will update this file automatically.
+The mock server uses `mock/registers.json` for register values mapped to the host filesystem.
+
+**Reading:** Edit the JSON file manually and restart the mock container to load new values:
+```bash
+# Edit mock/registers.json
+docker restart lg_r290_mock
+```
+
+**Writing:** Currently, writes from the API (power control, setpoint changes) update the mock server's internal state but are **not persisted** back to the JSON file automatically. This is a known limitation for testing. To test different states, manually edit the JSON file and restart the mock.
+
+For production use with real hardware, this limitation doesn't apply as the real heat pump maintains its own state.
 
 ## Troubleshooting
 
