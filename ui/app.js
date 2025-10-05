@@ -11,7 +11,6 @@ const powerStatus = document.getElementById('power-status');
 const compressorStatus = document.getElementById('compressor-status');
 const flowTempValue = document.getElementById('flow-temp-value');
 const returnTempValue = document.getElementById('return-temp-value');
-const outdoorTempValue = document.getElementById('outdoor-temp-value');
 const flowRateEl = document.getElementById('flow-rate');
 const waterPressureEl = document.getElementById('water-pressure');
 const operatingModeEl = document.getElementById('operating-mode');
@@ -20,11 +19,7 @@ const errorSection = document.getElementById('error-section');
 const errorMessage = document.getElementById('error-message');
 const tempSlider = document.getElementById('temp-slider');
 const tempSliderValue = document.getElementById('temp-slider-value');
-
-// Buttons
-const btnPowerOn = document.getElementById('btn-power-on');
-const btnPowerOff = document.getElementById('btn-power-off');
-const btnSetTemp = document.getElementById('btn-set-temp');
+const powerSwitch = document.getElementById('power-switch');
 
 // Gauge configuration
 const GAUGE_MIN = 0;
@@ -37,11 +32,19 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function initEventListeners() {
-    btnPowerOn.addEventListener('click', () => setPower(true));
-    btnPowerOff.addEventListener('click', () => setPower(false));
-    btnSetTemp.addEventListener('click', setTemperature);
+    // Power switch toggle
+    powerSwitch.addEventListener('change', (e) => {
+        setPower(e.target.checked);
+    });
+
+    // Temperature slider - update display on input
     tempSlider.addEventListener('input', (e) => {
         tempSliderValue.textContent = parseFloat(e.target.value).toFixed(1);
+    });
+
+    // Temperature slider - set value when released
+    tempSlider.addEventListener('change', (e) => {
+        setTemperature();
     });
 }
 
@@ -76,24 +79,22 @@ async function updateStatus() {
 }
 
 function updateUI(data) {
-    // Power status
+    // Power status - update switch state
+    powerSwitch.checked = data.is_on;
     powerStatus.textContent = data.is_on ? 'ON' : 'OFF';
     powerStatus.style.color = data.is_on ? '#10b981' : '#ef4444';
 
     // Compressor status
     compressorStatus.textContent = `Compressor: ${data.compressor_running ? 'ON' : 'OFF'}`;
-    compressorStatus.style.background = data.compressor_running ? '#d1fae5' : '#e5e7eb';
-    compressorStatus.style.color = data.compressor_running ? '#065f46' : '#6b7280';
+    compressorStatus.style.background = data.compressor_running ? '#d1fae5' : '#374151';
+    compressorStatus.style.color = data.compressor_running ? '#065f46' : '#9ca3af';
 
-    // Temperature gauges
+    // Temperature gauges - Flow (red) and Return (blue)
     updateGauge('gauge-flow', data.flow_temperature, GAUGE_MIN, GAUGE_MAX);
     flowTempValue.textContent = `${data.flow_temperature.toFixed(1)}°C`;
 
     updateGauge('gauge-return', data.return_temperature, GAUGE_MIN, GAUGE_MAX);
     returnTempValue.textContent = `${data.return_temperature.toFixed(1)}°C`;
-
-    updateGauge('gauge-outdoor', data.outdoor_temperature, -20, 40);
-    outdoorTempValue.textContent = `${data.outdoor_temperature.toFixed(1)}°C`;
 
     // Metrics
     flowRateEl.textContent = `${data.flow_rate.toFixed(1)} L/min`;
@@ -129,13 +130,15 @@ function updateGauge(gaugeId, value, min, max) {
     gauge.style.strokeDasharray = arcLength;
     gauge.style.strokeDashoffset = offset;
 
-    // Color coding
-    if (percentage > 80) {
-        gauge.style.stroke = '#ef4444'; // Red
-    } else if (percentage > 60) {
-        gauge.style.stroke = '#f59e0b'; // Orange
-    } else {
-        gauge.style.stroke = '#667eea'; // Blue
+    // Color coding - skip for flow gauge (already red via CSS)
+    if (gaugeId !== 'gauge-flow') {
+        if (percentage > 80) {
+            gauge.style.stroke = '#ef4444'; // Red
+        } else if (percentage > 60) {
+            gauge.style.stroke = '#f59e0b'; // Orange
+        } else {
+            gauge.style.stroke = '#667eea'; // Blue
+        }
     }
 }
 
@@ -196,11 +199,8 @@ async function setTemperature() {
         const result = await response.json();
         console.log('Temperature set:', result);
 
-        // Show confirmation
-        btnSetTemp.textContent = '✓ Set';
-        setTimeout(() => {
-            btnSetTemp.textContent = 'Set Temperature';
-        }, 2000);
+        // Immediate update to reflect change
+        setTimeout(updateStatus, 500);
 
     } catch (error) {
         console.error('Failed to set temperature:', error);

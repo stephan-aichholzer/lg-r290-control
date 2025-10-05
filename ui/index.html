@@ -20,14 +20,27 @@
             <!-- Left Panel: Power Control -->
             <section class="control-panel">
                 <h2>Power Control</h2>
-                <div class="power-controls">
-                    <button id="btn-power-on" class="btn btn-on">ON</button>
-                    <button id="btn-power-off" class="btn btn-off">OFF</button>
+                <div class="power-switch-container">
+                    <span class="switch-label">OFF</span>
+                    <label class="switch">
+                        <input type="checkbox" id="power-switch">
+                        <span class="slider"></span>
+                    </label>
+                    <span class="switch-label">ON</span>
                 </div>
                 <div class="status-indicator">
                     <span class="label">Status</span>
                     <span id="power-status" class="value">OFF</span>
                     <span id="compressor-status" class="badge">Compressor: OFF</span>
+                </div>
+            </section>
+
+            <!-- Temperature Setpoint -->
+            <section class="setpoint-control">
+                <h2>Target Water Temperature</h2>
+                <div class="slider-container">
+                    <label for="temp-slider">Setpoint: <span id="temp-slider-value">40.0</span>°C</label>
+                    <input type="range" id="temp-slider" min="35" max="45" step="0.5" value="40">
                 </div>
             </section>
 
@@ -40,9 +53,9 @@
                         <div class="gauge">
                             <svg viewBox="0 0 200 120" class="gauge-svg">
                                 <path class="gauge-bg" d="M 20 100 A 80 80 0 0 1 180 100"></path>
-                                <path id="gauge-flow" class="gauge-fill" d="M 20 100 A 80 80 0 0 1 180 100"></path>
+                                <path id="gauge-flow" class="gauge-fill gauge-fill-red" d="M 20 100 A 80 80 0 0 1 180 100"></path>
                             </svg>
-                            <div class="gauge-value" id="flow-temp-value">0.0°C</div>
+                            <div class="gauge-value gauge-value-red" id="flow-temp-value">0.0°C</div>
                         </div>
                         <div class="gauge-subtitle">Hotter</div>
                     </div>
@@ -57,17 +70,6 @@
                             <div class="gauge-value" id="return-temp-value">0.0°C</div>
                         </div>
                         <div class="gauge-subtitle">Colder</div>
-                    </div>
-
-                    <div class="gauge-container">
-                        <div class="gauge-label">Outdoor</div>
-                        <div class="gauge">
-                            <svg viewBox="0 0 200 120" class="gauge-svg">
-                                <path class="gauge-bg" d="M 20 100 A 80 80 0 0 1 180 100"></path>
-                                <path id="gauge-outdoor" class="gauge-fill" d="M 20 100 A 80 80 0 0 1 180 100"></path>
-                            </svg>
-                            <div class="gauge-value" id="outdoor-temp-value">0.0°C</div>
-                        </div>
                     </div>
                 </div>
             </section>
@@ -90,16 +92,6 @@
                             <div class="metric-label">Mode</div>
                             <div class="metric-value" id="operating-mode">--</div>
                         </div>
-                    </div>
-                </section>
-
-                <!-- Temperature Setpoint -->
-                <section class="setpoint-control">
-                    <h2>Target Temperature</h2>
-                    <div class="slider-container">
-                        <label for="temp-slider">Setpoint: <span id="temp-slider-value">45.0</span>°C</label>
-                        <input type="range" id="temp-slider" min="20" max="60" step="0.5" value="45">
-                        <button id="btn-set-temp" class="btn btn-primary">Set Temperature</button>
                     </div>
                 </section>
 
