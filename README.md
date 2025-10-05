@@ -49,12 +49,14 @@ docker-compose up -d
 
 4. Access the web UI:
 ```
-http://localhost:8080
+http://<raspberry-pi-ip>:8080
+# Example: http://192.168.1.100:8080
 ```
 
 5. API documentation (Swagger):
 ```
-http://localhost:8000/docs
+http://<raspberry-pi-ip>:8002/docs
+# Example: http://192.168.1.100:8002/docs
 ```
 
 ## Usage

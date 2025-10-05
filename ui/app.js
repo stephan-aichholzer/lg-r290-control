@@ -1,5 +1,6 @@
 // LG R290 Heat Pump Control UI
-const API_URL = 'http://localhost:8002';
+// Use window.location.hostname to work with any IP address or hostname
+const API_URL = `http://${window.location.hostname}:8002`;
 const UPDATE_INTERVAL = 2000; // 2 seconds
 
 let updateTimer = null;

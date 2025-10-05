@@ -39,8 +39,6 @@ services:
     container_name: lg_r290_ui
     ports:
       - "8080:80"
-    environment:
-      - API_URL=http://localhost:8002
     depends_on:
       - heatpump-service
     networks:
