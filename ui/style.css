@@ -61,23 +61,24 @@ main {
     overflow-y: auto;
 }
 
-/* Landscape layout: Single row with all content */
+/* Landscape layout: Table-like 2x2 arrangement */
 @media (orientation: landscape) and (max-height: 768px) {
     main {
         display: grid;
-        grid-template-columns: 1fr 2fr 1fr;
+        grid-template-columns: auto 1fr auto;
         grid-template-rows: auto 1fr;
-        row-gap: 2px;
-        column-gap: 8px;
+        row-gap: 6px;
+        column-gap: 10px;
         padding: 6px;
     }
 
     .control-panel {
         grid-column: 1;
-        grid-row: 1;
+        grid-row: 1 / 3;
         display: flex;
         flex-direction: column;
         gap: 6px;
+        align-self: stretch;
     }
 
     .setpoint-control {
@@ -97,6 +98,7 @@ main {
         display: flex;
         flex-direction: column;
         gap: 6px;
+        align-self: stretch;
     }
 
     section {
@@ -250,67 +252,69 @@ input:checked + .slider:before {
 @media (orientation: landscape) and (max-height: 768px) {
     .gauge-grid {
         grid-template-columns: repeat(2, 1fr);
-        gap: 10px;
+        gap: 8px;
     }
 
     .gauge {
-        width: 100px !important;
+        width: 135px !important;
         margin: 0 auto;
     }
 
     .gauge-value {
-        font-size: 14px !important;
+        font-size: 19px !important;
     }
 
     .gauge-label {
-        font-size: 11px;
-        margin-bottom: 4px;
+        font-size: 10px;
+        margin-bottom: 2px;
     }
 
     .gauge-subtitle {
-        font-size: 9px;
-        margin-top: 2px;
+        font-size: 8px;
+        margin-top: 1px;
     }
 
     .setpoint-control {
-        padding: 3px 8px 3px 8px !important;
-        max-height: 50px;
+        padding: 6px 10px !important;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
     }
 
     .setpoint-control h2 {
-        font-size: 10px;
-        margin-bottom: 2px;
-        line-height: 1;
+        font-size: 11px;
+        margin-bottom: 4px;
+        line-height: 1.2;
     }
 
     .slider-container {
-        gap: 2px;
+        gap: 4px;
         margin: 0;
     }
 
     .slider-container label {
-        font-size: 9px;
-        line-height: 1;
+        font-size: 10px;
+        line-height: 1.2;
         margin-bottom: 0;
     }
 
     #temp-slider-value {
-        font-size: 10px;
+        font-size: 11px;
     }
 
     #temp-slider {
-        height: 3px;
-        margin: 2px 0;
+        height: 4px;
+        margin: 3px 0;
     }
 
     #temp-slider::-webkit-slider-thumb {
-        width: 12px;
-        height: 12px;
+        width: 14px;
+        height: 14px;
     }
 
     #temp-slider::-moz-range-thumb {
-        width: 12px;
-        height: 12px;
+        width: 14px;
+        height: 14px;
     }
 
     .power-switch-container {
