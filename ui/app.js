@@ -4,6 +4,7 @@ const API_URL = `http://${window.location.hostname}:8002`;
 const UPDATE_INTERVAL = 2000; // 2 seconds
 
 let updateTimer = null;
+let userInteractingWithSlider = false;
 
 // UI Elements
 const connectionStatus = document.getElementById('connection-status');
@@ -37,6 +38,17 @@ function initEventListeners() {
         setPower(e.target.checked);
     });
 
+    // Temperature slider - track when user starts interacting
+    tempSlider.addEventListener('mousedown', () => {
+        console.log('mousedown - setting userInteractingWithSlider = true');
+        userInteractingWithSlider = true;
+    });
+
+    tempSlider.addEventListener('touchstart', () => {
+        console.log('touchstart - setting userInteractingWithSlider = true');
+        userInteractingWithSlider = true;
+    });
+
     // Temperature slider - update display on input
     tempSlider.addEventListener('input', (e) => {
         tempSliderValue.textContent = parseFloat(e.target.value).toFixed(1);
@@ -44,7 +56,28 @@ function initEventListeners() {
 
     // Temperature slider - set value when released
     tempSlider.addEventListener('change', (e) => {
+        console.log('change event - calling setTemperature');
         setTemperature();
+        // Allow automatic updates again after a short delay
+        setTimeout(() => {
+            console.log('change timeout - setting userInteractingWithSlider = false');
+            userInteractingWithSlider = false;
+        }, 100);
+    });
+
+    // Also reset flag on mouseup/touchend (in case change event doesn't fire)
+    tempSlider.addEventListener('mouseup', () => {
+        setTimeout(() => {
+            console.log('mouseup timeout - setting userInteractingWithSlider = false');
+            userInteractingWithSlider = false;
+        }, 100);
+    });
+
+    tempSlider.addEventListener('touchend', () => {
+        setTimeout(() => {
+            console.log('touchend timeout - setting userInteractingWithSlider = false');
+            userInteractingWithSlider = false;
+        }, 100);
     });
 }
 
@@ -79,6 +112,9 @@ async function updateStatus() {
 }
 
 function updateUI(data) {
+    // Debug logging
+    console.log('updateUI called, userInteracting:', userInteractingWithSlider, 'target_temp:', data.target_temperature);
+
     // Power status - update switch state
     powerSwitch.checked = data.is_on;
     powerStatus.textContent = data.is_on ? 'ON' : 'OFF';
@@ -90,9 +126,21 @@ function updateUI(data) {
     compressorStatus.style.color = data.compressor_running ? '#065f46' : '#9ca3af';
 
     // Update slider to reflect actual target temperature from device
-    if (data.target_temperature && data.target_temperature > 0) {
-        tempSlider.value = data.target_temperature;
-        tempSliderValue.textContent = data.target_temperature.toFixed(1);
+    // Only update if user is not currently interacting with the slider
+    if (data.target_temperature !== undefined && data.target_temperature !== null) {
+        const currentSliderValue = parseFloat(tempSlider.value);
+        const deviceTargetTemp = parseFloat(data.target_temperature);
+
+        if (!userInteractingWithSlider) {
+            // Always update slider if device temperature differs from current slider value
+            if (Math.abs(currentSliderValue - deviceTargetTemp) > 0.1) {
+                tempSlider.value = deviceTargetTemp;
+                tempSliderValue.textContent = deviceTargetTemp.toFixed(1);
+                console.log(`Slider updated from ${currentSliderValue} to ${deviceTargetTemp}`);
+            }
+        } else {
+            console.log(`Slider update blocked - user interacting (current: ${currentSliderValue}, device: ${deviceTargetTemp})`);
+        }
     }
 
     // Temperature gauges - Flow (red) and Return (blue)
