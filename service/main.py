@@ -75,8 +75,10 @@ app.add_middleware(
 class HeatPumpStatus(BaseModel):
     """Heat pump status response."""
     is_on: bool
+    water_pump_running: bool
     compressor_running: bool
     operating_mode: str
+    target_temperature: float
     flow_temperature: float
     return_temperature: float
     flow_rate: float

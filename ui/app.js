@@ -89,6 +89,12 @@ function updateUI(data) {
     compressorStatus.style.background = data.compressor_running ? '#d1fae5' : '#374151';
     compressorStatus.style.color = data.compressor_running ? '#065f46' : '#9ca3af';
 
+    // Update slider to reflect actual target temperature from device
+    if (data.target_temperature && data.target_temperature > 0) {
+        tempSlider.value = data.target_temperature;
+        tempSliderValue.textContent = data.target_temperature.toFixed(1);
+    }
+
     // Temperature gauges - Flow (red) and Return (blue)
     updateGauge('gauge-flow', data.flow_temperature, GAUGE_MIN, GAUGE_MAX);
     flowTempValue.textContent = `${data.flow_temperature.toFixed(1)}°C`;

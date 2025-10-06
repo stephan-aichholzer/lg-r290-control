@@ -122,6 +122,7 @@ class HeatPumpModbusClient:
                 # Read discrete inputs
                 discrete_result = await self.client.read_discrete_inputs(0, 14, slave=self.unit_id)
                 if not discrete_result.isError():
+                    self._cached_data['water_pump_running'] = discrete_result.bits[self.DISCRETE_WATER_PUMP]
                     self._cached_data['compressor_running'] = discrete_result.bits[self.DISCRETE_COMPRESSOR]
                     self._cached_data['has_error'] = discrete_result.bits[self.DISCRETE_ERROR]
 
@@ -141,6 +142,16 @@ class HeatPumpModbusClient:
                 else:
                     logger.error(f"Error reading input registers: {input_result}")
 
+                # Read holding registers (target temperature, operating mode)
+                holding_result = await self.client.read_holding_registers(0, 3, slave=self.unit_id)
+                if not holding_result.isError():
+                    holding_regs = holding_result.registers
+                    logger.info(f"Read holding registers: {holding_regs[:3]}")
+                    self._cached_data['target_temperature'] = holding_regs[self.HOLDING_TARGET_TEMP] / 10.0
+                    self._cached_data['configured_mode'] = holding_regs[self.HOLDING_OP_MODE]
+                else:
+                    logger.error(f"Error reading holding registers: {holding_result}")
+
                 logger.debug(f"Updated cache: {self._cached_data}")
 
             except ModbusException as e:
@@ -152,8 +163,10 @@ class HeatPumpModbusClient:
         """Get cached status data (non-blocking)."""
         return {
             'is_on': self._cached_data.get('is_on', False),
+            'water_pump_running': self._cached_data.get('water_pump_running', False),
             'compressor_running': self._cached_data.get('compressor_running', False),
             'operating_mode': self._cached_data.get('operating_mode', 'Unknown'),
+            'target_temperature': self._cached_data.get('target_temperature', 0.0),
             'flow_temperature': self._cached_data.get('flow_temperature', 0.0),
             'return_temperature': self._cached_data.get('return_temperature', 0.0),
             'flow_rate': self._cached_data.get('flow_rate', 0.0),
