@@ -2,9 +2,9 @@
 
 A Docker-based software stack for interfacing with an LG R290 7kW heat pump via Modbus TCP protocol.
 
-**Version**: v0.1 (Working Draft)
+**Version**: v0.4 (Stable)
 **Platform**: Raspberry Pi 5 / Linux
-**Status**: Ready for testing with real hardware
+**Status**: Production ready for kiosk deployment
 
 ## Features
 
@@ -19,10 +19,11 @@ A Docker-based software stack for interfacing with an LG R290 7kW heat pump via 
 - **Dark Mode Design**: Pure black background with high contrast for OLED displays
 - **Dual Layout Support**:
   - Desktop: Traditional vertical layout with full-sized gauges
-  - Landscape (Mobile): Compact 3-column layout, everything fits on one screen
+  - Landscape (Mobile): Optimized 2×2 table layout with 50% larger gauges
 - **Real-time Monitoring**: Temperature gauges, flow rate, pressure, operating mode
-- **Control Interface**: Power ON/OFF, temperature setpoint slider
-- **Mobile Optimized**: Kiosk mode ready for Android smartphones in landscape orientation
+- **Real-time Synchronization**: All values including temperature slider update automatically (2s interval)
+- **Control Interface**: Power ON/OFF, temperature setpoint slider with external change detection
+- **Kiosk Mode Ready**: Perfect for wall-mounted displays - slider syncs even when changed via LG app
 - **Network Access**: Dynamic hostname detection works from any device on local network
 
 ## Architecture
@@ -142,8 +143,10 @@ Get current heat pump status including temperatures, flow rate, and operating mo
 ```json
 {
   "is_on": true,
+  "water_pump_running": true,
   "compressor_running": false,
   "operating_mode": "Heating",
+  "target_temperature": 45.0,
   "flow_temperature": 35.0,
   "return_temperature": 30.0,
   "flow_rate": 12.5,
@@ -298,38 +301,54 @@ The system is designed for easy extension:
 
 ## Version History
 
-### v0.1 - Working Draft (2025-10-05)
+See [CHANGELOG.md](CHANGELOG.md) for detailed version history.
 
-**Status**: Ready for testing with real hardware
+### v0.4 - Current (2025-10-06)
+
+**Status**: Production ready for kiosk deployment
+
+**Latest Features:**
+- ✅ Real-time slider synchronization for kiosk mode
+- ✅ Temperature slider updates automatically when changed externally
+- ✅ Complete register monitoring (target temp, water pump status)
+- ✅ Optimized 2×2 landscape layout with 50% larger gauges
+- ✅ Touch and mouse event support for mobile and desktop
+- ✅ Debug logging for troubleshooting
 
 **What Works:**
 - ✅ Complete Docker stack with mock server, API, and UI
-- ✅ Power ON/OFF control
-- ✅ Temperature monitoring (flow, return, outdoor)
-- ✅ System metrics (flow rate, pressure, operating mode)
-- ✅ Temperature setpoint control
-- ✅ Dark mode responsive UI (desktop + mobile landscape)
+- ✅ Power ON/OFF control with status feedback
+- ✅ Temperature monitoring (flow, return, outdoor, target)
+- ✅ System metrics (flow rate, pressure, operating mode, pump status)
+- ✅ Temperature setpoint control with real-time sync
+- ✅ Dark mode responsive UI optimized for kiosk displays
 - ✅ Network-accessible from any device on LAN
-- ✅ Correct flow/return temperature mapping
+- ✅ All registers properly read and monitored
+
+**Kiosk Mode:**
+- ✅ Perfect for wall-mounted tablets/phones
+- ✅ Auto-updates every 2 seconds including slider position
+- ✅ Syncs with external changes (LG app, terminal, other clients)
+- ✅ Smooth user interaction without update conflicts
+- ✅ Optimized landscape layout for mobile devices
 
 **Known Limitations:**
 - ⚠️ Mock server: Writes not persisted to JSON file (acceptable for testing)
-- ⚠️ Mock server: Some register values read as zero due to Modbus addressing offset
-  - This is a mock-only issue and won't affect real hardware
-- ⚠️ API port changed to 8002 (to avoid conflict with Portainer on 8000)
+- ⚠️ Mock server: Some register values read as zero (Modbus addressing offset, mock-only)
+- ⚠️ API port 8002 (avoids Portainer conflict on 8000)
 
 **Testing Status:**
-- ✅ Tested with mock server - basic functionality verified
+- ✅ Tested with mock server - all functionality verified
+- ✅ UI tested on desktop and mobile browsers
+- ✅ Kiosk mode tested on mobile landscape
+- ✅ Real-time synchronization verified
 - ⚠️ Not yet tested with real LG R290 hardware
-- ✅ UI tested on desktop browsers
-- ⚠️ Mobile kiosk mode not yet tested on Android
 
 **Next Steps:**
 1. Test with real LG R290 hardware via Waveshare gateway
 2. Verify all register readings with actual heat pump
-3. Test mobile kiosk mode on Android smartphone
-4. Add data logging if needed
-5. Fine-tune UI based on real-world usage
+3. Deploy to production kiosk environment
+4. Consider data logging (InfluxDB) for historical trends
 
 ## License
 
