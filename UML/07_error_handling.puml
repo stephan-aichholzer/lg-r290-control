@@ -1,0 +1,165 @@
+@startuml Error Handling and Failure Scenarios
+title Error Handling - Network Failures, Timeouts, and Recovery
+
+participant "adaptive_controller" as AI
+participant "modbus_client" as Modbus
+participant "Heat Pump\n(Modbus TCP)" as HeatPump
+participant "Thermostat API\n(iot-api:8000)" as Thermostat
+participant "heating_curve" as Curve
+
+== Scenario 1: Heat Pump Connection Lost ==
+AI -> Modbus: get_cached_status()
+
+alt Heat Pump Connected
+    Modbus --> AI: {outdoor_temperature: 5.0, ...}
+else Heat Pump Disconnected
+    Modbus -> HeatPump: Read registers
+    HeatPump --> Modbus: Connection timeout/refused
+    Modbus -> Modbus: Log error:\n"Cannot poll: not connected"
+    Modbus -> Modbus: Set connected=False
+    Modbus --> AI: {outdoor_temperature: None, ...}
+
+    AI -> AI: outdoor_temp is None
+    AI -> AI: Log warning:\n"Cannot adjust: outdoor_temp=None"
+    AI -> AI: Skip adjustment cycle
+end
+
+note right of Modbus
+  Background polling task attempts
+  reconnection automatically every
+  5 seconds until successful
+end note
+
+== Scenario 2: Thermostat API Unavailable ==
+AI -> Thermostat: GET /api/v1/thermostat/status\n(timeout: 10s)
+
+alt HTTP Connection Timeout
+    Thermostat --> AI: httpx.ConnectTimeout\n(no response within 10s)
+    AI -> AI: Catch httpx.HTTPError
+    AI -> AI: Log warning:\n"Thermostat API not accessible"
+    AI -> AI: Use fallback:\ntarget_room_temp = 21.0°C
+    AI -> AI: Continue with default value
+else HTTP Error Status (4xx, 5xx)
+    Thermostat --> AI: 500 Internal Server Error
+    AI -> AI: Catch httpx.HTTPError
+    AI -> AI: Use fallback temperature
+else Network DNS Failure
+    Thermostat --> AI: httpx.ConnectError\n(name resolution failed)
+    AI -> AI: Log warning:\n"Cannot reach iot-api"
+    AI -> AI: Use fallback temperature
+else JSON Parse Error
+    Thermostat --> AI: 200 OK\n(invalid JSON body)
+    AI -> AI: Catch Exception
+    AI -> AI: Log warning:\n"Error parsing response"
+    AI -> AI: Use fallback temperature
+end
+
+note right of AI
+  AI Mode continues operating
+  with default target temperature
+  when thermostat is unavailable.
+
+  No service crash or failure.
+end note
+
+== Scenario 3: Invalid Heating Curve Configuration ==
+AI -> Curve: calculate_flow_temp(\n  outdoor_temp=5.0,\n  target_room_temp=21.5)
+
+Curve -> Curve: select_heating_curve(21.5)
+
+alt No Matching Curve Found
+    Curve -> Curve: No curve matches target_temp range
+    Curve -> Curve: Log warning:\n"No heating curve found for 21.5°C"
+    Curve --> AI: None (no valid flow temp)
+    AI -> AI: optimal_flow_temp is None
+    AI -> AI: Log warning:\n"Cannot adjust: optimal_flow_temp=None"
+    AI -> AI: Skip adjustment
+end
+
+Curve -> Curve: find_flow_temp_from_curve(outdoor=5.0)
+
+alt No Matching Outdoor Range
+    Curve -> Curve: No range matches outdoor_temp
+    Curve -> Curve: Log warning:\n"No matching range for outdoor 5.0°C"
+    Curve --> AI: None
+    AI -> AI: Skip adjustment
+end
+
+== Scenario 4: Modbus Write Failure ==
+AI -> Modbus: set_target_temperature(40.0)
+Modbus -> HeatPump: Write Holding Register 40003
+
+alt Write Success
+    HeatPump --> Modbus: Success response
+    Modbus --> AI: True
+    AI -> AI: Log info:\n"AI Mode: Adjusted flow temp 38°C → 40°C"
+else Write Timeout
+    HeatPump --> Modbus: Timeout (no response)
+    Modbus -> Modbus: Log error:\n"Write timeout"
+    Modbus --> AI: False
+    AI -> AI: Log error:\n"Failed to adjust flow temperature"
+    AI -> AI: Will retry next cycle (30s)
+else Write Exception
+    HeatPump --> Modbus: Modbus exception\n(illegal data value)
+    Modbus -> Modbus: Catch exception
+    Modbus --> AI: False
+    AI -> AI: Log error with details
+    AI -> AI: Continue operation\n(retry next cycle)
+end
+
+== Scenario 5: Power Control Failure ==
+AI -> AI: Heat pump is OFF\nNeed to turn ON before adjusting
+
+AI -> Modbus: set_power(True)
+Modbus -> HeatPump: Write Coil 00001 (True)
+
+alt Power ON Failed
+    HeatPump --> Modbus: Error/timeout
+    Modbus --> AI: False
+    AI -> AI: Log error:\n"Failed to turn heat pump ON"
+    AI -> AI: Skip temperature adjustment\n(no point adjusting if OFF)
+    AI -> AI: Will retry entire sequence\nnext cycle
+else Power ON Success
+    HeatPump --> Modbus: Success
+    Modbus --> AI: True
+    AI -> AI: Wait 2 seconds\n(power-on stabilization)
+    AI -> Modbus: set_target_temperature(40.0)
+    note right: Continue with adjustment
+end
+
+== Scenario 6: Control Loop Exception ==
+loop Every 30 seconds
+    AI -> AI: _control_loop() iteration
+
+    alt Normal Operation
+        AI -> AI: if enabled:\n    _adjust_flow_temperature()
+        note right: See previous scenarios
+    else asyncio.CancelledError
+        AI -> AI: Catch CancelledError
+        AI -> AI: Log info:\n"Adaptive control loop cancelled"
+        AI -> AI: break (exit loop)
+    else Unexpected Exception
+        AI -> AI: Catch Exception
+        AI -> AI: Log error with traceback:\n"Error in adaptive control loop"
+        AI -> AI: Sleep 30 seconds
+        AI -> AI: Continue loop\n(don't crash service)
+    end
+end
+
+note over AI
+  **Recovery Strategy:**
+
+  1. Never crash the entire service
+  2. Log all errors with details
+  3. Use fallback values when possible
+  4. Retry automatically on next cycle
+  5. Graceful degradation:
+     - No thermostat → use default temp
+     - No heat pump → wait and retry
+     - Invalid config → keep old config
+
+  AI Mode designed for resilience
+  in production environments.
+end note
+
+@enduml

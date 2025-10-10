@@ -1,0 +1,94 @@
+@startuml Thermostat Integration
+title Thermostat Integration - Room Temperature Control
+
+actor User
+participant "Web Browser\n(UI)" as UI
+participant "heatpump-service\n(FastAPI)" as API
+participant "adaptive_controller" as AI
+box "External Stack (shelly_bt_temp_default network)"
+    participant "Thermostat API\n(iot-api:8000)" as Thermostat
+    participant "InfluxDB" as DB
+    participant "Shelly BLU H&T" as Sensor
+end box
+
+== Thermostat Data Flow (Independent) ==
+loop Every 30 seconds
+    Sensor -> Sensor: Measure temperature\nvia Bluetooth
+    Sensor -> Thermostat: Report temperature\n(HTTP POST)
+    Thermostat -> DB: Store measurement\n(InfluxDB write)
+    Thermostat -> Thermostat: Update current_temp\nCalculate heating_needed
+end
+
+== User Views Thermostat in UI ==
+User -> UI: Opens dashboard
+UI -> Thermostat: GET /api/v1/thermostat/status\n(direct from browser)
+
+note right of UI
+  Browser can access thermostat directly
+  because it's on the same LAN.
+  No Docker network isolation.
+end note
+
+Thermostat --> UI: 200 OK\n{\n  "config": {"target_temp": 21.5, "mode": "AUTO"},\n  "current_temp": 22.0,\n  "all_temps": {\n    "temp_indoor": 22.0,\n    "temp_outdoor": 11.8\n  },\n  "switch_state": false,\n  "heating_needed": false\n}
+UI --> User: Display thermostat panel:\n- Current: 22.0°C\n- Target: 21.5°C\n- Mode: AUTO\n- Heating: OFF
+
+== User Changes Target Temperature ==
+User -> UI: Adjusts target temp slider\n(21.5°C → 22.0°C)
+UI -> Thermostat: PUT /api/v1/thermostat/config\n{"target_temp": 22.0}
+Thermostat -> Thermostat: Update config\nRecalculate heating_needed
+Thermostat --> UI: 200 OK\n{"status": "success"}
+
+UI -> Thermostat: GET /api/v1/thermostat/status\n(immediate refresh)
+Thermostat --> UI: Updated status
+UI --> User: Confirm new target: 22.0°C
+
+== User Changes Thermostat Mode ==
+User -> UI: Selects mode\n(AUTO → ECO)
+UI -> Thermostat: PUT /api/v1/thermostat/config\n{"mode": "ECO"}
+Thermostat -> Thermostat: Switch to ECO mode\n(use eco_temp instead of target_temp)
+Thermostat --> UI: 200 OK
+UI --> User: Mode indicator: ECO
+
+== AI Mode Reads Thermostat (Backend) ==
+loop Every 30 seconds (when AI Mode enabled)
+    AI -> Thermostat: GET /api/v1/thermostat/status\n(via Docker network: shelly_bt_temp_default)
+
+    alt Thermostat Accessible
+        note right of AI
+          Container uses Docker DNS:
+          iot-api:8000 (container name)
+
+          Both containers on same network:
+          shelly_bt_temp_default (external)
+        end note
+
+        Thermostat --> AI: 200 OK\n{"config": {"target_temp": 21.5}, ...}
+        AI -> AI: Extract target_room_temp = 21.5°C
+        AI -> AI: Use in heating curve calculation
+    else Thermostat Unreachable
+        Thermostat --> AI: Connection timeout\n(network error, service down)
+        AI -> AI: Log warning:\n"Thermostat API not accessible"
+        AI -> AI: Fallback to default:\ntarget_room_temp = 21.0°C\n(from heating_curve_config.json)
+    end
+end
+
+== Network Architecture ==
+note over UI, Sensor
+  **Network Topology:**
+
+  Browser (LAN) ←→ Thermostat API (host network)
+    ✓ Direct HTTP access (no Docker)
+
+  heatpump-service (Docker) ←→ Thermostat API (Docker)
+    ✓ Via external network reference
+    ✓ Container name resolution (iot-api)
+    ✓ Both on shelly_bt_temp_default network
+
+  **Why it works:**
+  - Thermostat container name: iot-api
+  - Network: shelly_bt_temp_default (shared)
+  - DNS: Docker resolves iot-api → container IP
+  - No firewall blocking (same Docker network)
+end note
+
+@enduml

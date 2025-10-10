@@ -1,0 +1,141 @@
+@startuml Network Architecture and Docker Communication
+title Network Architecture - Docker Multi-Stack Communication
+
+!define CONTAINER_COLOR #E3F2FD
+!define NETWORK_COLOR #FFF3E0
+!define EXTERNAL_COLOR #F3E5F5
+
+package "Host Machine (192.168.2.11)" {
+
+    package "lg_r290_control Stack" {
+        rectangle "heatpump-mock\nPort 502 → 5020" as Mock CONTAINER_COLOR
+        rectangle "heatpump-service\nPort 8000 → 8002" as Service CONTAINER_COLOR
+        rectangle "heatpump-ui\nPort 80 → 8080" as UI CONTAINER_COLOR
+
+        cloud "heatpump-net\n(bridge)" as NetHP NETWORK_COLOR {
+            Mock -- NetHP
+            Service -- NetHP
+            UI -- NetHP
+        }
+    }
+
+    package "shelly_bt_temp Stack" {
+        rectangle "influxdb\nPort 8086" as InfluxDB CONTAINER_COLOR
+        rectangle "iot-api\nPort 8000 → 8001" as Thermostat CONTAINER_COLOR
+        rectangle "sensor-poller\n(host network)" as Poller CONTAINER_COLOR
+
+        cloud "shelly_bt_temp_default\n(bridge)" as NetThermo NETWORK_COLOR {
+            InfluxDB -- NetThermo
+            Thermostat -- NetThermo
+        }
+    }
+
+    package "modbus Stack" {
+        rectangle "modbus_exporter\nPort 9100" as ModbusExp CONTAINER_COLOR
+        rectangle "prometheus\nPort 9090" as Prometheus CONTAINER_COLOR
+        rectangle "grafana\nPort 3000" as Grafana CONTAINER_COLOR
+
+        cloud "modbus_default\n(bridge)" as NetModbus NETWORK_COLOR {
+            ModbusExp -- NetModbus
+            Prometheus -- NetModbus
+            Grafana -- NetModbus
+        }
+    }
+
+    cloud "External Network Reference" as ExtNet EXTERNAL_COLOR {
+        note right of ExtNet
+          shelly_bt_temp_default:
+            external: true
+
+          Allows other stacks to join
+          thermostat's network for
+          container-to-container communication
+        end note
+    }
+}
+
+package "Local Network (192.168.2.0/24)" {
+    actor "User Browser\n192.168.2.195" as Browser
+    rectangle "Shelly BLU H&T\n192.168.2.12" as Shelly EXTERNAL_COLOR
+    rectangle "LG R290 Heat Pump\n(via RS485 Gateway)" as RealHeatPump EXTERNAL_COLOR
+}
+
+' Internal Docker connections
+Service .down.> NetThermo : << joins external network >>
+ExtNet .up.> NetThermo : references
+Service ..> Thermostat : HTTP: iot-api:8000\n(Docker DNS)
+
+' Cross-stack connections
+Prometheus .up.> NetThermo : << joins external network >>
+Grafana .up.> NetThermo : << joins external network >>
+
+' External connections
+Browser --> UI : HTTP: 192.168.2.11:8080\n(Web UI)
+Browser --> Service : HTTP: 192.168.2.11:8002\n(API)
+Browser --> Thermostat : HTTP: 192.168.2.11:8001\n(Thermostat API)
+Browser --> Grafana : HTTP: 192.168.2.11:3000\n(Grafana)
+
+Shelly --> Poller : HTTP: 192.168.2.12\n(Sensor data)
+Poller --> InfluxDB : HTTP: 192.168.2.11:8086\n(Store data)
+
+Mock ..> RealHeatPump : Modbus TCP: 502\n(when using real hardware)
+
+note right of Service
+  **heatpump-service Networks:**
+
+  1. heatpump-net (internal)
+     - Access mock server
+     - Container name: heatpump-mock
+     - Port: 502 (Modbus TCP)
+
+  2. shelly_bt_temp_default (external)
+     - Access thermostat API
+     - Container name: iot-api
+     - Port: 8000 (HTTP)
+
+  **Why both networks needed:**
+  - Can't use host network (breaks mock access)
+  - Must join external network for thermostat
+  - Docker DNS resolves container names
+end note
+
+note left of Browser
+  **User Access Patterns:**
+
+  Browser → Services (via host IP):
+  ✓ 192.168.2.11:8080 (Heat pump UI)
+  ✓ 192.168.2.11:8002 (Heat pump API)
+  ✓ 192.168.2.11:8001 (Thermostat API)
+  ✓ 192.168.2.11:3000 (Grafana)
+
+  No Docker networking involved.
+  Browser on same LAN as host.
+end note
+
+note bottom of NetThermo
+  **External Network Pattern:**
+
+  docker-compose.yml (lg_r290_control):
+  ```yaml
+  networks:
+    heatpump-net:
+      driver: bridge
+    shelly_bt_temp_default:
+      external: true  # ← Reference existing network
+  ```
+
+  docker-compose.yml (modbus):
+  ```yaml
+  networks:
+    - default  # Own network
+    - shelly_bt_temp_default  # Join thermostat network
+  ```
+
+  **Benefits:**
+  - No host IP addressing needed
+  - Container name DNS resolution
+  - Isolated but connected stacks
+  - Standard Docker networking
+end note
+
+@enduml

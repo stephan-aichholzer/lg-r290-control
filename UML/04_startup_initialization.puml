@@ -1,0 +1,109 @@
+@startuml System Startup and Initialization
+title System Startup - Docker Compose Stack Initialization
+
+participant "Docker Compose" as Docker
+participant "heatpump-mock\n(Mock Server)" as Mock
+participant "heatpump-service\n(FastAPI)" as API
+participant "adaptive_controller" as AI
+participant "heating_curve" as Curve
+participant "modbus_client" as Modbus
+participant "heatpump-ui\n(Nginx)" as UI
+
+== Docker Compose Up ==
+Docker -> Mock: Start container\n(depends: none)
+activate Mock
+
+Mock -> Mock: Load registers.json
+Mock -> Mock: Initialize pymodbus\nModbusTcpServer(port 502)
+Mock -> Mock: Register request handlers
+Mock --> Docker: Ready (port 502 exposed as 5020)
+
+Docker -> API: Start container\n(depends: heatpump-mock)
+activate API
+
+== FastAPI Service Initialization ==
+API -> API: Load environment variables:\n- MODBUS_HOST=heatpump-mock\n- MODBUS_PORT=502\n- THERMOSTAT_API_URL=http://iot-api:8000\n- POLL_INTERVAL=5
+
+API -> Modbus: HeatPumpModbusClient(\n  host="heatpump-mock",\n  port=502,\n  unit_id=1)
+activate Modbus
+
+Modbus -> Mock: Connect AsyncModbusTcpClient
+alt Connection Success
+    Mock --> Modbus: Connected
+    Modbus -> Modbus: Start polling task\n(asyncio background task)
+    Modbus -> Modbus: Initial register read
+    Modbus -> Mock: Read all registers
+    Mock --> Modbus: Initial values
+    Modbus -> Modbus: Update cached_status
+    Modbus --> API: Connection established
+else Connection Failed
+    Mock --> Modbus: Connection refused
+    Modbus -> Modbus: Log error\nSet connected=False
+    Modbus --> API: Failed (will retry)
+end
+
+== AI Mode Initialization ==
+API -> Curve: Load heating_curve_config.json
+activate Curve
+
+alt Config File Exists
+    Curve -> Curve: Parse JSON
+    Curve -> Curve: Validate structure:\n- heating_curves (eco, comfort, high)\n- settings (cutoff_temp, thresholds)
+    Curve --> API: Config loaded
+else Config Missing/Invalid
+    Curve -> Curve: Use default hardcoded config
+    Curve -> Curve: Log warning
+    Curve --> API: Default config loaded
+end
+
+API -> AI: AdaptiveController(\n  modbus_client,\n  thermostat_api_url)
+activate AI
+
+AI -> AI: Load settings from heating_curve:\n- update_interval=30s\n- adjustment_threshold=2°C
+
+AI -> AI: Initialize state:\n- enabled=False\n- last_update=None
+
+API -> AI: start()
+AI -> AI: Create asyncio background task\n_control_loop()
+AI --> API: Controller started
+
+== Background Tasks Running ==
+loop Every 5 seconds
+    Modbus -> Mock: Polling: Read all registers
+    Mock --> Modbus: Current values
+    Modbus -> Modbus: Update cached_status
+end
+
+loop Every 30 seconds (when enabled)
+    AI -> AI: Check if enabled
+    opt AI Mode Enabled
+        AI -> AI: Execute _adjust_flow_temperature()
+        note right: See diagram 02_ai_mode_control.puml
+    end
+end
+
+API -> API: Uvicorn server ready\nhttp://0.0.0.0:8000
+API --> Docker: Service ready (port 8000 exposed as 8002)
+
+== UI Container Startup ==
+Docker -> UI: Start container\n(depends: heatpump-service)
+activate UI
+
+UI -> UI: Nginx starts\nServe static files from /usr/share/nginx/html
+UI --> Docker: Ready (port 80 exposed as 8080)
+
+== System Ready ==
+Docker --> Docker: All services healthy
+
+note over Mock, UI
+  System fully operational:
+  - Mock server: localhost:5020 (external) / heatpump-mock:502 (internal)
+  - API service: localhost:8002 (external) / lg_r290_service:8000 (internal)
+  - Web UI: localhost:8080
+
+  Networks:
+  - heatpump-net: Internal bridge (mock, service, UI)
+  - shelly_bt_temp_default: External network (for thermostat API)
+end note
+
+@enduml

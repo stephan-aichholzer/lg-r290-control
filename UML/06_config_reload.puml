@@ -1,0 +1,116 @@
+@startuml Configuration Hot-Reload
+title Hot-Reload Configuration - No Service Restart Required
+
+actor Admin
+participant "Text Editor" as Editor
+participant "File System" as FS
+participant "Web Browser\n(UI)" as UI
+participant "heatpump-service\n(FastAPI)" as API
+participant "adaptive_controller" as AI
+participant "heating_curve" as Curve
+
+== Admin Edits Configuration ==
+Admin -> Editor: vim service/heating_curve_config.json
+Editor --> Admin: Opened in editor
+
+Admin -> Editor: Modify configuration:\n- Change eco curve: 46°C → 45°C\n- Change update_interval: 600s → 300s\n- Change adjustment_threshold: 2°C → 1.5°C
+
+Admin -> Editor: :wq (save and quit)
+Editor -> FS: Write file to disk\n(Docker volume mount)
+FS --> Editor: File saved
+
+note right of FS
+  File is immediately visible inside
+  container via Docker volume mount:
+
+  Host: ./service/heating_curve_config.json
+  Container: /app/heating_curve_config.json
+end note
+
+== Trigger Hot-Reload ==
+Admin -> UI: Opens web browser\nhttp://192.168.2.11:8002/docs
+UI --> Admin: Show Swagger UI
+
+Admin -> UI: Navigate to POST /ai-mode/reload-config
+UI --> Admin: Show API endpoint
+
+Admin -> UI: Click "Try it out"\nClick "Execute"
+UI -> API: POST /ai-mode/reload-config
+
+== Reload Process ==
+API -> AI: reload_config()
+AI -> Curve: reload_config()
+
+Curve -> FS: Open heating_curve_config.json
+FS --> Curve: File contents (new values)
+
+Curve -> Curve: Parse JSON
+Curve -> Curve: Validate structure:\n- heating_curves present?\n- settings present?\n- required fields exist?
+
+alt Configuration Valid
+    Curve -> Curve: Compare with old config:\nold_config != new_config
+
+    opt Configuration Changed
+        Curve -> Curve: self.config = new_config
+        Curve -> Curve: Log: "Configuration reloaded\n(changed: true)"
+    end
+
+    Curve --> AI: changed = True
+
+    AI -> Curve: get_settings()
+    Curve --> AI: {\n  update_interval_seconds: 300,\n  adjustment_threshold: 1.5,\n  ...\n}
+
+    AI -> AI: Update instance variables:\nself.update_interval = 300\nself.adjustment_threshold = 1.5
+
+    AI -> AI: Log: "Configuration reloaded\ninterval: 300s, threshold: 1.5°C"
+
+    AI --> API: changed = True
+    API --> UI: 200 OK\n{\n  "status": "success",\n  "config_changed": true\n}
+
+else Configuration Invalid
+    Curve -> Curve: Validation failed
+    Curve -> Curve: Log error:\n"Invalid configuration"
+    Curve -> Curve: Keep old config\n(no changes applied)
+    Curve --> AI: changed = False
+    AI --> API: changed = False
+    API --> UI: 200 OK\n{"status": "success", "config_changed": false}
+end
+
+UI --> Admin: Show result:\n"Configuration reloaded successfully"
+
+== New Configuration Takes Effect Immediately ==
+note over AI
+  Next control loop cycle (within 300s)
+  will use new parameters:
+  - New heating curves
+  - New update interval (300s)
+  - New adjustment threshold (1.5°C)
+
+  No service restart required!
+end note
+
+loop Every 300 seconds (new interval)
+    AI -> AI: _adjust_flow_temperature()
+    AI -> Curve: calculate_flow_temp(\n  outdoor_temp,\n  target_room_temp)
+    Curve -> Curve: Use NEW eco curve:\n0-10°C → 45°C (was 46°C)
+    Curve --> AI: optimal_flow_temp
+
+    AI -> AI: Check adjustment:\ntemp_diff >= 1.5°C (was 2°C)
+
+    opt Adjustment needed
+        AI -> AI: Adjust heat pump
+    end
+end
+
+== Alternative: Check Current Configuration ==
+Admin -> UI: GET /ai-mode
+UI -> API: GET /ai-mode
+API -> AI: get_status()
+AI -> AI: Get current settings
+AI -> Curve: get_curve_info(target_room_temp)
+Curve --> AI: Curve details
+AI --> API: {\n  "update_interval_seconds": 300,\n  "adjustment_threshold": 1.5,\n  "heating_curve": {"name": "ECO Mode"},\n  ...\n}
+API --> UI: 200 OK
+UI --> Admin: Display current config
+
+@enduml

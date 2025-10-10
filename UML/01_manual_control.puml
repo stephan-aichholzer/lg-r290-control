@@ -1,0 +1,52 @@
+@startuml Manual Control - User Sets Temperature
+title Manual Control Mode - Temperature Setpoint Adjustment
+
+actor User
+participant "Web Browser\n(UI)" as UI
+participant "heatpump-service\n(FastAPI)" as API
+participant "modbus_client" as Modbus
+participant "Heat Pump\n(Modbus TCP)" as HeatPump
+
+== Initial Load ==
+User -> UI: Opens web interface
+UI -> API: GET /status
+API -> Modbus: get_cached_status()
+Modbus --> API: Current device state
+API --> UI: 200 OK\n{is_on, target_temperature, flow_temp, ...}
+UI --> User: Display current status
+
+== User Adjusts Temperature ==
+User -> UI: Drags slider\n(e.g., 35°C → 40°C)
+UI -> UI: Update slider value\n(local feedback)
+
+User -> UI: Releases slider
+UI -> API: POST /setpoint\n{"temperature": 40.0}
+API -> Modbus: set_target_temperature(40.0)
+Modbus -> HeatPump: Write Holding Register 40003\n(value: 400 = 40.0°C * 10)
+HeatPump --> Modbus: Success
+Modbus --> API: True
+API --> UI: 200 OK\n{"status": "success"}
+
+== Verification (500ms later) ==
+UI -> API: GET /status\n(immediate refresh)
+API -> Modbus: get_cached_status()
+Modbus --> API: Updated state\n{target_temperature: 40.0}
+API --> UI: 200 OK
+UI --> User: Slider confirms 40°C
+
+== Continuous Polling ==
+loop Every 10 seconds
+    UI -> API: GET /status
+    API -> Modbus: get_cached_status()
+    Modbus --> API: Current state
+    API --> UI: 200 OK
+    UI --> User: Update display
+end
+
+note right of Modbus
+  Background polling task runs
+  every 5 seconds independently,
+  keeping cached status fresh
+end note
+
+@enduml

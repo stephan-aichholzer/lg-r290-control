@@ -1,0 +1,89 @@
+@startuml Power Control - ON/OFF
+title Power Control - Heat Pump ON/OFF
+
+actor User
+participant "Web Browser\n(UI)" as UI
+participant "heatpump-service\n(FastAPI)" as API
+participant "modbus_client" as Modbus
+participant "Heat Pump\n(Modbus TCP)" as HeatPump
+
+== User Turns Heat Pump ON ==
+User -> UI: Clicks power switch\n(OFF → ON)
+UI -> UI: Optimistic UI update\n(show switch as ON)
+
+UI -> API: POST /power\n{"power_on": true}
+API -> Modbus: set_power(True)
+Modbus -> HeatPump: Write Coil 00001 (True)
+
+alt Modbus Write Success
+    HeatPump --> Modbus: Success response
+    Modbus --> API: True
+    API --> UI: 200 OK\n{"status": "success", "power_on": true}
+
+    note right of UI
+      Immediate refresh triggered
+      (500ms after user action)
+    end note
+
+    UI -> API: GET /status\n(verification)
+    API -> Modbus: get_cached_status()
+    Modbus --> API: {is_on: true, ...}
+    API --> UI: 200 OK
+    UI --> User: Confirm ON status\nwith green LED
+
+else Modbus Write Failed
+    HeatPump --> Modbus: Error/timeout
+    Modbus --> API: False
+    API --> UI: 500 Error\n{"detail": "Failed to set power"}
+    UI -> UI: Revert switch\n(show as OFF)
+    UI --> User: Error message
+end
+
+== Background Polling ==
+note over Modbus, HeatPump
+  Polling task continues every 5 seconds
+  regardless of user actions
+end note
+
+loop Every 5 seconds
+    Modbus -> HeatPump: Read Coils 00001-00002
+    HeatPump --> Modbus: [is_on, water_pump]
+
+    Modbus -> HeatPump: Read Discrete Inputs 10001-10004
+    HeatPump --> Modbus: [errors, statuses]
+
+    Modbus -> HeatPump: Read Input Registers 30001-30014
+    HeatPump --> Modbus: [temperatures, flow_rate, ...]
+
+    Modbus -> HeatPump: Read Holding Registers 40001-40003
+    HeatPump --> Modbus: [mode, target_temp]
+
+    Modbus -> Modbus: Update cached status
+end
+
+== User Turns Heat Pump OFF ==
+User -> UI: Clicks power switch\n(ON → OFF)
+UI -> UI: Optimistic UI update\n(show switch as OFF)
+
+UI -> API: POST /power\n{"power_on": false}
+API -> Modbus: set_power(False)
+Modbus -> HeatPump: Write Coil 00001 (False)
+
+alt Write Success
+    HeatPump --> Modbus: Success
+    Modbus --> API: True
+    API --> UI: 200 OK
+    UI -> API: GET /status\n(verification)
+    API -> Modbus: get_cached_status()
+    Modbus --> API: {is_on: false, ...}
+    API --> UI: 200 OK
+    UI --> User: Confirm OFF status\nwith gray LED
+else Write Failed
+    HeatPump --> Modbus: Error
+    Modbus --> API: False
+    API --> UI: 500 Error
+    UI -> UI: Revert switch (ON)
+    UI --> User: Error message
+end
+
+@enduml
