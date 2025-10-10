@@ -248,7 +248,7 @@ function adjustTemperature(delta) {
     currentTargetTemp = newTemp;
 
     // IMMEDIATE: Update UI display
-    updateTempDisplay(newTemp);
+    elements.tempDisplay.textContent = `${newTemp.toFixed(1)}°C`;
     console.log('UI updated to:', newTemp);
 
     // DEBOUNCE: Clear previous timer
