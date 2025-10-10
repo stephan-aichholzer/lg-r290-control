@@ -2,7 +2,7 @@
 export const CONFIG = {
     HEATPUMP_API_URL: `http://${window.location.hostname}:8002`,
     THERMOSTAT_API_URL: `http://192.168.2.11:8001`,
-    HEATPUMP_UPDATE_INTERVAL: 2000, // 2 seconds
+    HEATPUMP_UPDATE_INTERVAL: 10000, // 10 seconds (reduced from 2s to minimize Modbus traffic)
     THERMOSTAT_UPDATE_INTERVAL: 60000, // 60 seconds
     GAUGE_MIN: 0,
     GAUGE_MAX: 80,

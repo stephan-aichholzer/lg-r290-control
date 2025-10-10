@@ -118,37 +118,42 @@ function updateUI(data) {
     console.log('updateUI called with data:', data);
     console.log('elements.modeButtons:', elements.modeButtons);
 
-    // Update active mode button (mode is in data.config.mode)
+    // Update active mode button (mode is in data.config.mode) - only toggle if needed
     const currentMode = data.config?.mode || data.mode;
     console.log('currentMode extracted:', currentMode);
 
     elements.modeButtons.forEach(btn => {
-        console.log('Checking button:', btn.dataset.mode, 'against currentMode:', currentMode);
-        if (btn.dataset.mode === currentMode) {
+        const shouldBeActive = btn.dataset.mode === currentMode;
+        const isActive = btn.classList.contains('active');
+
+        if (shouldBeActive && !isActive) {
             btn.classList.add('active');
-            console.log(`Mode button ${currentMode} set to active, classes:`, btn.classList.toString());
-        } else {
+            console.log(`Mode button ${currentMode} set to active`);
+        } else if (!shouldBeActive && isActive) {
             btn.classList.remove('active');
         }
     });
 
-    // Update target temperature display (use active_target from status)
+    // Update target temperature display - only if changed
     const targetTemp = data.active_target || data.config?.target_temp || 0;
-    elements.tempDisplay.textContent = `${targetTemp.toFixed(1)}°C`;
-    console.log(`Target temp display set to ${targetTemp}°C`);
+    const newTempText = `${targetTemp.toFixed(1)}°C`;
+    if (elements.tempDisplay.textContent !== newTempText) {
+        elements.tempDisplay.textContent = newTempText;
+        console.log(`Target temp display updated to ${targetTemp}°C`);
+    }
 
-    // Update pump status (switch_state indicates if pump is ON)
+    // Update pump status - only toggle if changed to prevent flickering
     const pumpOn = data.switch_state === true;
-    console.log(`Pump state: ${pumpOn ? 'ON' : 'OFF'}`);
+    const pumpIsOn = elements.pumpDot.classList.contains('on');
 
-    if (pumpOn) {
+    if (pumpOn && !pumpIsOn) {
         elements.pumpDot.classList.add('on');
-        elements.pumpStatusText.classList.add('on');
         elements.pumpStatusText.textContent = 'ON';
-    } else {
+        console.log('Pump turned ON');
+    } else if (!pumpOn && pumpIsOn) {
         elements.pumpDot.classList.remove('on');
-        elements.pumpStatusText.classList.remove('on');
         elements.pumpStatusText.textContent = 'OFF';
+        console.log('Pump turned OFF');
     }
 }
 

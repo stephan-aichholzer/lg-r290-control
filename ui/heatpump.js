@@ -108,20 +108,30 @@ async function updateStatus() {
 function updateUI(data) {
     console.log('updateUI called, userInteracting:', userInteractingWithSlider, 'target_temp:', data.target_temperature);
 
-    // Power status
-    elements.powerSwitch.checked = data.is_on;
-    elements.powerStatus.textContent = data.is_on ? 'ON' : 'OFF';
-    if (data.is_on) {
+    // Power status - only update if changed to prevent flickering
+    if (elements.powerSwitch.checked !== data.is_on) {
+        elements.powerSwitch.checked = data.is_on;
+    }
+    const newPowerText = data.is_on ? 'ON' : 'OFF';
+    if (elements.powerStatus.textContent !== newPowerText) {
+        elements.powerStatus.textContent = newPowerText;
+    }
+    // Toggle class only if needed
+    if (data.is_on && !elements.powerDot.classList.contains('on')) {
         elements.powerDot.classList.add('on');
-    } else {
+    } else if (!data.is_on && elements.powerDot.classList.contains('on')) {
         elements.powerDot.classList.remove('on');
     }
 
-    // Compressor status
-    elements.compressorStatus.textContent = data.compressor_running ? 'ON' : 'OFF';
-    if (data.compressor_running) {
+    // Compressor status - only update if changed to prevent flickering
+    const newCompressorText = data.compressor_running ? 'ON' : 'OFF';
+    if (elements.compressorStatus.textContent !== newCompressorText) {
+        elements.compressorStatus.textContent = newCompressorText;
+    }
+    // Toggle class only if needed
+    if (data.compressor_running && !elements.compressorDot.classList.contains('on')) {
         elements.compressorDot.classList.add('on');
-    } else {
+    } else if (!data.compressor_running && elements.compressorDot.classList.contains('on')) {
         elements.compressorDot.classList.remove('on');
     }
 
@@ -141,11 +151,16 @@ function updateUI(data) {
         }
     }
 
-    // Temperature gauge - Flow only
+    // Temperature gauge - Flow only (updateGauge already optimized)
     updateGauge('gauge-flow', data.flow_temperature, CONFIG.GAUGE_MIN, CONFIG.GAUGE_MAX);
-    elements.flowTempValue.textContent = `${data.flow_temperature.toFixed(1)}°C`;
 
-    // Last update time
+    // Only update text if value changed
+    const newFlowTemp = `${data.flow_temperature.toFixed(1)}°C`;
+    if (elements.flowTempValue.textContent !== newFlowTemp) {
+        elements.flowTempValue.textContent = newFlowTemp;
+    }
+
+    // Last update time (always update to show it's alive)
     elements.lastUpdateEl.textContent = new Date().toLocaleTimeString();
 }
 
