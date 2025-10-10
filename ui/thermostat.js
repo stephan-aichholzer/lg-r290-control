@@ -212,7 +212,7 @@ async function setMode(mode) {
 
 /**
  * Adjust target temperature
- * @param {number} delta - Temperature change (+0.5 or -0.5)
+ * @param {number} delta - Temperature change (CONFIG.THERMOSTAT_TEMP_STEP)
  */
 async function adjustTemperature(delta) {
     try {
@@ -224,7 +224,7 @@ async function adjustTemperature(delta) {
 
         // Clamp to valid range
         newTemp = Math.max(CONFIG.THERMOSTAT_TEMP_MIN, Math.min(CONFIG.THERMOSTAT_TEMP_MAX, newTemp));
-        newTemp = Math.round(newTemp * 2) / 2; // Round to nearest 0.5
+        newTemp = Math.round(newTemp * 10) / 10; // Round to nearest 0.1
 
         // Only update if changed
         if (newTemp === currentConfig.target_temp) {

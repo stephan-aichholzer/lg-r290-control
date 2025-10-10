@@ -8,7 +8,7 @@ export const CONFIG = {
     GAUGE_MAX: 80,
     THERMOSTAT_TEMP_MIN: 18.0,
     THERMOSTAT_TEMP_MAX: 24.0,
-    THERMOSTAT_TEMP_STEP: 0.5,
+    THERMOSTAT_TEMP_STEP: 0.1,
 
     // Thermostat default configuration
     THERMOSTAT_DEFAULTS: {
