@@ -221,10 +221,16 @@ curl -X POST http://localhost:8002/ai-mode/reload-config
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `MODBUS_HOST` | `heatpump-mock` | Modbus TCP host (container name or IP) |
-| `MODBUS_PORT` | `502` | Modbus TCP port |
+| `MODBUS_PORT` | `502` | Modbus TCP port (internal Docker network) |
 | `MODBUS_UNIT_ID` | `1` | Modbus slave/unit ID |
 | `POLL_INTERVAL` | `5` | Polling interval in seconds |
-| `THERMOSTAT_API_URL` | `http://192.168.2.11:8001` | Thermostat API base URL (for AI Mode) |
+| `THERMOSTAT_API_URL` | `http://iot-api:8000` | Thermostat API base URL (Docker container name for AI Mode) |
+
+**Note for AI Mode Integration**:
+- The `THERMOSTAT_API_URL` should use the **Docker container name** (`iot-api`) not the host IP
+- Requires external network reference to the thermostat stack (see docker-compose.yml)
+- Example: `shelly_bt_temp_default` network must exist and be referenced
+- If thermostat API is unavailable, AI Mode falls back to default target temperature (21°C)
 
 ### Modbus Registers
 

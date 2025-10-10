@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v0.8.1] - 2025-10-10
+
+### Fixed
+- **Docker Network Integration**: Resolved network isolation preventing AI Mode from accessing thermostat API
+  - Added external network reference to `shelly_bt_temp_default` in docker-compose.yml
+  - Changed THERMOSTAT_API_URL from host IP to container name (`http://iot-api:8000`)
+  - Fixed MODBUS_PORT from 5020 (external) to 502 (internal Docker network port)
+  - Corrected thermostat API field name from `target_temperature` to `target_temp`
+  - Enhanced error handling with fallback to default temperature (21°C)
+
+### Changed
+- Environment variable `THERMOSTAT_API_URL` default changed to container name for Docker networking
+- Updated README.md with network configuration requirements for AI Mode integration
+
+### Technical Details
+- Solution uses Docker external network pattern for inter-stack communication
+- Container DNS resolution replaces host IP addressing for thermostat API
+- Maintains compatibility with both internal heatpump-net and external networks
+
 ## [v0.8] - 2025-10-10
 
 ### Added
