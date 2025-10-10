@@ -4,6 +4,8 @@ import { apiRequest } from './utils.js';
 
 // State
 let updateTimer = null;
+let debounceTimer = null;
+let currentTargetTemp = null;
 
 // UI Elements - initialized after DOM loads
 let elements = {};
@@ -211,45 +213,68 @@ async function setMode(mode) {
 }
 
 /**
- * Adjust target temperature
+ * Adjust target temperature with debouncing (2 second delay)
  * @param {number} delta - Temperature change (CONFIG.THERMOSTAT_TEMP_STEP)
  */
 async function adjustTemperature(delta) {
     try {
-        // Get current config
-        const currentConfig = await apiRequest(`${CONFIG.THERMOSTAT_API_URL}/api/v1/thermostat/config`);
+        // Initialize currentTargetTemp if not set (first click)
+        if (currentTargetTemp === null) {
+            const currentConfig = await apiRequest(`${CONFIG.THERMOSTAT_API_URL}/api/v1/thermostat/config`);
+            currentTargetTemp = currentConfig.target_temp;
+        }
 
         // Calculate new temperature
-        let newTemp = currentConfig.target_temp + delta;
+        let newTemp = currentTargetTemp + delta;
 
         // Clamp to valid range
         newTemp = Math.max(CONFIG.THERMOSTAT_TEMP_MIN, Math.min(CONFIG.THERMOSTAT_TEMP_MAX, newTemp));
         newTemp = Math.round(newTemp * 10) / 10; // Round to nearest 0.1
 
         // Only update if changed
-        if (newTemp === currentConfig.target_temp) {
+        if (newTemp === currentTargetTemp) {
             console.log('Temperature already at limit');
             return;
         }
 
-        // Build full config with new target temperature
-        const fullConfig = {
-            target_temp: newTemp,
-            eco_temp: currentConfig.eco_temp,
-            mode: currentConfig.mode,
-            ...CONFIG.THERMOSTAT_DEFAULTS
-        };
+        // Update current target temperature
+        currentTargetTemp = newTemp;
 
-        const result = await apiRequest(`${CONFIG.THERMOSTAT_API_URL}/api/v1/thermostat/config`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(fullConfig)
-        });
+        // IMMEDIATE: Update UI display
+        updateTempDisplay(newTemp);
 
-        console.log('Thermostat temperature adjusted:', result);
-        setTimeout(updateStatus, 500);
+        // DEBOUNCE: Clear previous timer
+        clearTimeout(debounceTimer);
+
+        // Start new 2-second timer for API call
+        debounceTimer = setTimeout(async () => {
+            try {
+                // Get current config for full update
+                const currentConfig = await apiRequest(`${CONFIG.THERMOSTAT_API_URL}/api/v1/thermostat/config`);
+
+                // Build full config with new target temperature
+                const fullConfig = {
+                    target_temp: currentTargetTemp,
+                    eco_temp: currentConfig.eco_temp,
+                    mode: currentConfig.mode,
+                    ...CONFIG.THERMOSTAT_DEFAULTS
+                };
+
+                // Update via API
+                await apiRequest(`${CONFIG.THERMOSTAT_API_URL}/api/v1/thermostat/config`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(fullConfig)
+                });
+
+                console.log(`Temperature updated to ${currentTargetTemp}°C`);
+                setTimeout(updateStatus, 500);
+            } catch (error) {
+                console.error('Failed to update temperature via API:', error);
+            }
+        }, 2000); // 2 second debounce delay
+
     } catch (error) {
-        console.error('Failed to adjust thermostat temperature:', error);
-        alert('Failed to adjust temperature');
+        console.error('Failed to adjust temperature:', error);
     }
 }
