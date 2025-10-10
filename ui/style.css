@@ -495,8 +495,9 @@ input:checked + .slider:before {
 }
 
 #temp-slider-value {
-    color: #667eea;
+    color: #e5e7eb;
     font-size: 18px;
+    font-weight: 700;
 }
 
 #temp-slider {
@@ -617,11 +618,11 @@ footer {
 .mode-btn {
     padding: 16px 12px;
     background: #374151;
-    color: #9ca3af;
+    color: #e5e7eb;
     border: 1px solid #4b5563;
     border-radius: 12px;
     font-size: 14px;
-    font-weight: 600;
+    font-weight: 700;
     cursor: pointer;
     transition: all 0.3s ease;
     text-transform: uppercase;
@@ -660,7 +661,7 @@ footer {
 .temp-display {
     font-size: 24px;
     font-weight: 700;
-    color: #667eea;
+    color: #e5e7eb;
     min-width: 90px;
     text-align: center;
 }
