@@ -158,19 +158,44 @@ class AdaptiveController:
             logger.error(f"Error adjusting flow temperature: {e}", exc_info=True)
 
     async def _get_outdoor_temperature(self) -> Optional[float]:
-        """Get outdoor temperature from heat pump."""
+        """Get outdoor temperature from thermostat API (Shelly sensor) with heat pump fallback."""
+        try:
+            # Primary source: Thermostat API (Shelly outdoor sensor)
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.get(
+                    f"{self.thermostat_api_url}/api/v1/thermostat/status"
+                )
+                response.raise_for_status()
+                data = response.json()
+
+                # Extract outdoor temperature from all_temps
+                outdoor_temp = data.get('all_temps', {}).get('temp_outdoor')
+
+                if outdoor_temp is not None:
+                    logger.debug(f"Outdoor temperature from Shelly sensor: {outdoor_temp}°C")
+                    return float(outdoor_temp)
+
+                logger.warning("Outdoor temperature not found in thermostat response")
+
+        except httpx.HTTPError as e:
+            logger.warning(f"Thermostat API not accessible for outdoor temp: {e}")
+        except Exception as e:
+            logger.warning(f"Error getting outdoor temperature from thermostat: {e}")
+
+        # Fallback: Try heat pump outdoor sensor
         try:
             status = self.modbus_client.get_cached_status()
             outdoor_temp = status.get('outdoor_temperature')
 
             if outdoor_temp is not None and outdoor_temp != 0.0:
+                logger.info(f"Using heat pump outdoor temperature (fallback): {outdoor_temp}°C")
                 return outdoor_temp
 
-            logger.warning("Outdoor temperature not available from heat pump")
+            logger.warning("Outdoor temperature not available from any source")
             return None
 
         except Exception as e:
-            logger.error(f"Error getting outdoor temperature: {e}")
+            logger.error(f"Error getting outdoor temperature from heat pump: {e}")
             return None
 
     async def _get_target_room_temperature(self) -> Optional[float]:
