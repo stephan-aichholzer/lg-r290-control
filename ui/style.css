@@ -39,8 +39,8 @@ header {
 
 header h1 {
     font-size: 20px;
-    font-weight: 600;
-    color: #667eea;
+    font-weight: 700;
+    color: #e5e7eb;
 }
 
 .status-badge {
@@ -143,9 +143,9 @@ section {
 
 section h2 {
     margin-bottom: 12px;
-    color: #667eea;
+    color: #e5e7eb;
     font-size: 16px;
-    font-weight: 600;
+    font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.5px;
 }
@@ -705,8 +705,8 @@ footer {
 .temperature-display h2 {
     margin: 0 0 12px 0;
     font-size: 14px;
-    color: #9ca3af;
-    font-weight: 600;
+    color: #e5e7eb;
+    font-weight: 700;
 }
 
 .temp-badges {
