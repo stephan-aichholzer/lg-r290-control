@@ -1,3 +1,9 @@
+:root {
+    /* Main accent color - Orange theme */
+    --accent-color: #f97316;
+    --accent-color-rgb: 249, 115, 22;
+}
+
 * {
     margin: 0;
     padding: 0;
@@ -45,7 +51,7 @@ header h1 {
 }
 
 .status-badge.connected {
-    background: #10b981;
+    background: var(--accent-color);
     color: #000;
 }
 
@@ -199,7 +205,7 @@ section h2 {
 }
 
 input:checked + .slider {
-    background-color: #10b981;
+    background-color: var(--accent-color);
 }
 
 input:checked + .slider:before {
@@ -207,7 +213,7 @@ input:checked + .slider:before {
 }
 
 .slider:hover {
-    box-shadow: 0 0 8px rgba(16, 185, 129, 0.5);
+    box-shadow: 0 0 8px rgba(var(--accent-color-rgb), 0.5);
 }
 
 .status-indicator {
@@ -253,8 +259,8 @@ input:checked + .slider:before {
 }
 
 .status-dot.on {
-    background: #10b981;
-    box-shadow: 0 0 8px rgba(16, 185, 129, 0.6);
+    background: var(--accent-color);
+    box-shadow: 0 0 8px rgba(var(--accent-color-rgb), 0.6);
     animation: pulse 2s infinite;
 }
 
@@ -632,10 +638,10 @@ footer {
 }
 
 .mode-btn.active {
-    background: #10b981;
+    background: var(--accent-color);
     color: #ffffff;
-    border-color: #10b981;
-    box-shadow: 0 0 8px rgba(16, 185, 129, 0.5);
+    border-color: var(--accent-color);
+    box-shadow: 0 0 8px rgba(var(--accent-color-rgb), 0.5);
 }
 
 .temp-control {
@@ -824,7 +830,7 @@ footer {
 }
 
 .ai-status-text.active {
-    color: #10b981;
+    color: var(--accent-color);
 }
 
 /* Disabled slider when AI mode is active */
