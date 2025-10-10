@@ -26,10 +26,12 @@ services:
       - MODBUS_PORT=${MODBUS_PORT:-502}
       - MODBUS_UNIT_ID=${MODBUS_UNIT_ID:-1}
       - POLL_INTERVAL=${POLL_INTERVAL:-5}
+      - THERMOSTAT_API_URL=${THERMOSTAT_API_URL:-http://iot-api:8000}
     depends_on:
       - heatpump-mock
     networks:
       - heatpump-net
+      - shelly_bt_temp_default
     restart: unless-stopped
 
   heatpump-ui:
@@ -48,3 +50,5 @@ services:
 networks:
   heatpump-net:
     driver: bridge
+  shelly_bt_temp_default:
+    external: true

@@ -174,7 +174,7 @@ class AdaptiveController:
             return None
 
     async def _get_target_room_temperature(self) -> Optional[float]:
-        """Get target room temperature from thermostat API."""
+        """Get target room temperature from thermostat API with fallback to default."""
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 response = await client.get(
@@ -184,21 +184,23 @@ class AdaptiveController:
                 data = response.json()
 
                 # Extract target temperature from config
-                target_temp = data.get('config', {}).get('target_temperature')
+                target_temp = data.get('config', {}).get('target_temp')
 
                 if target_temp is not None:
                     logger.debug(f"Target room temperature from thermostat: {target_temp}°C")
                     return float(target_temp)
 
                 logger.warning("Target temperature not found in thermostat response")
-                return None
 
         except httpx.HTTPError as e:
-            logger.error(f"HTTP error getting target room temperature: {e}")
-            return None
+            logger.warning(f"Thermostat API not accessible: {e}")
         except Exception as e:
-            logger.error(f"Error getting target room temperature: {e}")
-            return None
+            logger.warning(f"Error getting target room temperature: {e}")
+
+        # Fallback to default from configuration
+        default_temp = self.heating_curve.get_settings().get('default_target_room_temp', 21)
+        logger.info(f"Using default target room temperature: {default_temp}°C (thermostat not available)")
+        return float(default_temp)
 
     def get_status(self) -> dict:
         """Get current AI mode status."""
