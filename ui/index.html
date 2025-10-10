@@ -28,6 +28,18 @@
                     </label>
                     <span class="switch-label">ON</span>
                 </div>
+
+                <!-- AI Mode Control -->
+                <div class="power-switch-container ai-mode-switch-container">
+                    <span class="switch-label">Manual</span>
+                    <label class="switch">
+                        <input type="checkbox" id="ai-mode-switch">
+                        <span class="slider"></span>
+                    </label>
+                    <span class="switch-label">AI</span>
+                </div>
+                <div class="ai-status-text" id="ai-status-text">Manual Control</div>
+
                 <div class="status-indicator">
                     <span class="label">Heat Pump</span>
                     <div class="status-badge-compact">
@@ -55,7 +67,9 @@
             <section class="setpoint-control">
                 <h2>Target Water Temperature</h2>
                 <div class="slider-container">
-                    <label for="temp-slider">Setpoint: <span id="temp-slider-value">40.0</span>°C</label>
+                    <label for="temp-slider">
+                        Setpoint: <span id="temp-slider-value">40.0</span>°C
+                    </label>
                     <input type="range" id="temp-slider" min="35" max="45" step="0.5" value="40">
                 </div>
             </section>

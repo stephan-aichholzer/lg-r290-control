@@ -1,10 +1,10 @@
 # LG R290 Heat Pump Control System
 
-A Docker-based software stack for interfacing with an LG R290 7kW heat pump via Modbus TCP protocol with integrated room thermostat control.
+A Docker-based software stack for interfacing with an LG R290 7kW heat pump via Modbus TCP protocol with integrated room thermostat control and AI-powered adaptive heating curve.
 
-**Version**: v0.7 (Stable)
+**Version**: v0.8 (Stable)
 **Platform**: Raspberry Pi 5 / Linux
-**Status**: Production ready for wall-mounted kiosk deployment
+**Status**: Production ready with AI Mode for autonomous weather compensation
 
 ## Features
 
@@ -26,12 +26,20 @@ A Docker-based software stack for interfacing with an LG R290 7kW heat pump via 
   - Unified status badges: Heat pump, compressor, circulation pump (with LED indicators)
   - Temperature setpoint slider with auto-sync (2s interval)
   - Power ON/OFF control
+  - **AI Mode Toggle**: Manual/AI control mode switch with visual feedback
 - **Room Thermostat Integration**:
   - 4 operating modes: AUTO, ECO, ON, OFF
   - Target temperature control (18-24°C, 0.5°C steps)
   - Circulation pump status indicator
   - 60-second polling interval
   - Integrates with Shelly BT Thermostat API
+- **AI Mode (NEW in v0.8)**:
+  - Adaptive heating curve: Automatic flow temperature optimization
+  - Weather compensation: Adjusts based on outdoor temperature
+  - 3 heating curves: ECO (≤21°C), Comfort (21-23°C), High (>23°C)
+  - Autonomous operation: Evaluates every 10 minutes
+  - User-editable configuration via JSON
+  - Automatic shutdown when outdoor temp ≥18°C
 - **Kiosk Mode Optimized**: Perfect for wall-mounted mobile displays in landscape orientation
 - **Cross-Origin Support**: CORS-enabled for multi-service integration
 
@@ -149,6 +157,63 @@ app.add_middleware(
    - Circulation pump status indicator
    - 60-second polling interval
 
+### AI Mode (Adaptive Heating Curve)
+
+AI Mode enables autonomous flow temperature optimization based on outdoor temperature and target room temperature using weather compensation heating curves.
+
+**How It Works:**
+
+1. **Enable AI Mode**: Toggle the Manual/AI switch in the Power Control panel
+2. **Automatic Operation**: Every 10 minutes, the system:
+   - Reads outdoor temperature from the heat pump
+   - Reads target room temperature from the thermostat
+   - Selects the appropriate heating curve (ECO/Comfort/High)
+   - Calculates optimal flow temperature
+   - Adjusts the heat pump if needed (threshold: 2°C)
+   - Turns off the heat pump when outdoor temp ≥18°C
+
+**Heating Curves** (defined in `service/heating_curve_config.json`):
+
+| Target Room Temp | Curve | Outdoor < -10°C | -10°C to 0°C | 0°C to 10°C | 10°C to 18°C |
+|------------------|-------|-----------------|--------------|-------------|--------------|
+| ≤21°C | ECO | 46°C | 43°C | 38°C | 33°C |
+| 21-23°C | Comfort | 48°C | 45°C | 40°C | 35°C |
+| >23°C | High | 50°C | 47°C | 42°C | 37°C |
+
+**Configuration** (`service/heating_curve_config.json`):
+```json
+{
+  "settings": {
+    "outdoor_cutoff_temp": 18.0,        // Heat pump off above this temp
+    "outdoor_restart_temp": 17.0,       // Heat pump on below this temp (hysteresis)
+    "update_interval_seconds": 600,     // Evaluation interval (10 minutes)
+    "min_flow_temp": 30.0,              // Safety limit minimum
+    "max_flow_temp": 50.0,              // Safety limit maximum
+    "adjustment_threshold": 2.0,        // Only adjust if difference > 2°C
+    "hysteresis_outdoor": 1.0           // Temperature hysteresis
+  }
+}
+```
+
+**Hot-Reload Configuration**:
+```bash
+# Edit the configuration file
+nano service/heating_curve_config.json
+
+# Reload without restarting
+curl -X POST http://localhost:8002/ai-mode/reload-config
+```
+
+**API Endpoints**:
+- `GET /ai-mode` - Get AI mode status and diagnostics
+- `POST /ai-mode` - Enable/disable AI mode: `{"enabled": true}`
+- `POST /ai-mode/reload-config` - Reload configuration
+
+**Requirements**:
+- Thermostat API must be accessible for target room temperature
+- Heat pump must provide outdoor temperature readings
+- Recommended for heating season (outdoor temp < 18°C)
+
 ## Configuration
 
 ### Environment Variables
@@ -159,6 +224,7 @@ app.add_middleware(
 | `MODBUS_PORT` | `502` | Modbus TCP port |
 | `MODBUS_UNIT_ID` | `1` | Modbus slave/unit ID |
 | `POLL_INTERVAL` | `5` | Polling interval in seconds |
+| `THERMOSTAT_API_URL` | `http://192.168.2.11:8001` | Thermostat API base URL (for AI Mode) |
 
 ### Modbus Registers
 
@@ -348,7 +414,35 @@ The system is designed for easy extension:
 
 See [CHANGELOG.md](CHANGELOG.md) for detailed version history.
 
-### v0.7 - Current (2025-10-10)
+### v0.8 - Current (2025-10-10)
+
+**Status**: Production ready with AI Mode for autonomous weather compensation
+
+**New Features:**
+- ✅ **AI Mode**: Adaptive heating curve with weather compensation
+- ✅ **3 Heating Curves**: ECO (≤21°C), Comfort (21-23°C), High (>23°C)
+- ✅ **Autonomous Operation**: Evaluates every 10 minutes when enabled
+- ✅ **Manual/AI Toggle**: Integrated into Power Control panel
+- ✅ **Thermostat Integration**: Uses target room temperature for curve selection
+- ✅ **JSON Configuration**: User-editable heating curves and parameters
+- ✅ **Hot-Reload**: Update configuration without restarting service
+- ✅ **Safety Features**: Min/max limits, hysteresis, adjustment thresholds
+- ✅ **Auto-Shutdown**: Heat pump off when outdoor temp ≥18°C
+- ✅ **Visual Feedback**: Slider disabled when AI mode active, status text updates
+
+**Backend Enhancements:**
+- New API endpoints: `/ai-mode` (GET/POST), `/ai-mode/reload-config`
+- New modules: `heating_curve.py`, `adaptive_controller.py`
+- Added httpx dependency for thermostat API integration
+- Background control loop with configurable 10-minute interval
+
+**UI Improvements:**
+- Manual/AI toggle switch in Power Control panel
+- Status indicator: "Manual Control" / "AI Mode Active" (green when active)
+- Temperature slider auto-disables when AI mode enabled
+- Real-time AI mode status polling
+
+### v0.7 (2025-10-10)
 
 **Status**: Production ready for wall-mounted kiosk deployment
 

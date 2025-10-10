@@ -17,7 +17,9 @@ const elements = {
     lastUpdateEl: document.getElementById('last-update'),
     tempSlider: document.getElementById('temp-slider'),
     tempSliderValue: document.getElementById('temp-slider-value'),
-    powerSwitch: document.getElementById('power-switch')
+    powerSwitch: document.getElementById('power-switch'),
+    aiModeSwitch: document.getElementById('ai-mode-switch'),
+    aiStatusText: document.getElementById('ai-status-text')
 };
 
 /**
@@ -26,6 +28,8 @@ const elements = {
 export function init() {
     initEventListeners();
     startAutoUpdate();
+    // Fetch initial AI mode status
+    fetchAIModeStatus();
 }
 
 /**
@@ -77,6 +81,11 @@ function initEventListeners() {
             userInteractingWithSlider = false;
         }, 100);
     });
+
+    // AI mode toggle
+    elements.aiModeSwitch.addEventListener('change', async (e) => {
+        await setAIMode(e.target.checked);
+    });
 }
 
 /**
@@ -95,6 +104,9 @@ async function updateStatus() {
         const data = await apiRequest(`${CONFIG.HEATPUMP_API_URL}/status`);
         updateUI(data);
         updateConnectionStatus(elements.connectionStatus, true);
+
+        // Also fetch AI mode status periodically
+        await fetchAIModeStatus();
     } catch (error) {
         console.error('Failed to fetch heat pump status:', error);
         updateConnectionStatus(elements.connectionStatus, false);
@@ -199,5 +211,77 @@ async function setTemperature() {
     } catch (error) {
         console.error('Failed to set temperature:', error);
         alert('Failed to set temperature');
+    }
+}
+
+/**
+ * Set AI mode (adaptive heating curve control)
+ * @param {boolean} enabled - Enable or disable AI mode
+ */
+async function setAIMode(enabled) {
+    try {
+        const result = await apiRequest(`${CONFIG.HEATPUMP_API_URL}/ai-mode`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ enabled })
+        });
+
+        console.log('AI Mode set:', result);
+
+        // Update UI state
+        updateAIModeUI(enabled);
+
+        // Refresh status after a short delay
+        setTimeout(updateStatus, 500);
+    } catch (error) {
+        console.error('Failed to set AI mode:', error);
+        alert('Failed to set AI mode');
+        // Revert switch state on error
+        elements.aiModeSwitch.checked = !enabled;
+    }
+}
+
+/**
+ * Update AI mode UI state
+ * @param {boolean} enabled - AI mode enabled state
+ */
+function updateAIModeUI(enabled) {
+    // Update status text
+    if (enabled) {
+        elements.aiStatusText.textContent = 'AI Mode Active';
+        elements.aiStatusText.classList.add('active');
+
+        // Disable temperature slider
+        elements.tempSlider.disabled = true;
+        elements.tempSlider.classList.add('ai-disabled');
+    } else {
+        elements.aiStatusText.textContent = 'Manual Control';
+        elements.aiStatusText.classList.remove('active');
+
+        // Enable temperature slider
+        elements.tempSlider.disabled = false;
+        elements.tempSlider.classList.remove('ai-disabled');
+    }
+}
+
+/**
+ * Fetch AI mode status
+ */
+async function fetchAIModeStatus() {
+    try {
+        const data = await apiRequest(`${CONFIG.HEATPUMP_API_URL}/ai-mode`);
+
+        // Update switch state without triggering change event
+        if (elements.aiModeSwitch.checked !== data.enabled) {
+            elements.aiModeSwitch.checked = data.enabled;
+        }
+
+        // Update UI
+        updateAIModeUI(data.enabled);
+
+        return data;
+    } catch (error) {
+        console.error('Failed to fetch AI mode status:', error);
+        return null;
     }
 }

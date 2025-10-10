@@ -807,3 +807,33 @@ footer {
 .gauge-container-single {
     text-align: center;
 }
+
+/* AI Mode Control (within Power Control panel) */
+.ai-mode-switch-container {
+    margin-top: 12px;
+    margin-bottom: 8px;
+}
+
+.ai-status-text {
+    text-align: center;
+    font-size: 11px;
+    color: #9ca3af;
+    font-weight: 600;
+    margin-top: 4px;
+    margin-bottom: 12px;
+}
+
+.ai-status-text.active {
+    color: #10b981;
+}
+
+/* Disabled slider when AI mode is active */
+input[type="range"]:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+input[type="range"].ai-disabled {
+    pointer-events: none;
+    opacity: 0.5;
+}

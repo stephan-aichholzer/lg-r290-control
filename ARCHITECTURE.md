@@ -121,6 +121,8 @@ The LG R290 Heat Pump Control System is a containerized, microservices-based arc
 - Modbus connection management with reconnection logic
 - Register value conversion (e.g., 0.1°C scaling)
 - CORS enabled for web UI access
+- AI Mode: Adaptive heating curve control with weather compensation
+- Thermostat integration for room temperature feedback
 
 **Data Flow**:
 1. On startup: Connect to Modbus TCP server (mock or real)
@@ -138,10 +140,16 @@ The LG R290 Heat Pump Control System is a containerized, microservices-based arc
 | POST | `/setpoint` | Set target temperature | TemperatureSetpoint | Status message |
 | GET | `/health` | Health check | - | Health status |
 | GET | `/registers/raw` | Raw register data (debug) | - | Raw values |
+| GET | `/ai-mode` | AI mode status and diagnostics | - | AI mode status |
+| POST | `/ai-mode` | Enable/disable AI mode | AIModeControl | Status message |
+| POST | `/ai-mode/reload-config` | Hot-reload heating curve config | - | Status message |
 
 **Files**:
 - `service/main.py`: FastAPI application and endpoints
 - `service/modbus_client.py`: Modbus TCP client wrapper
+- `service/heating_curve.py`: Heating curve configuration and calculation
+- `service/adaptive_controller.py`: AI mode autonomous control loop
+- `service/heating_curve_config.json`: Heating curve configuration (user-editable)
 - `service/Dockerfile`: Container build configuration
 
 **Configuration** (Environment Variables):
@@ -149,6 +157,7 @@ The LG R290 Heat Pump Control System is a containerized, microservices-based arc
 - `MODBUS_PORT`: Modbus TCP port (default: `502`)
 - `MODBUS_UNIT_ID`: Modbus unit/slave ID (default: `1`)
 - `POLL_INTERVAL`: Polling interval in seconds (default: `5`)
+- `THERMOSTAT_API_URL`: External thermostat API URL (default: `http://192.168.2.11:8001`)
 
 ### 3. heatpump-ui (Web Interface)
 
@@ -201,8 +210,94 @@ The LG R290 Heat Pump Control System is a containerized, microservices-based arc
 **Files**:
 - `ui/index.html`: HTML structure
 - `ui/style.css`: Styling and responsive design
-- `ui/app.js`: Application logic and API integration
+- `ui/app.js`: Application entry point
+- `ui/config.js`: Configuration module (API URLs, polling intervals, thermostat defaults)
+- `ui/utils.js`: Utility functions (API requests, gauge rendering, connection status)
+- `ui/heatpump.js`: Heat pump control module (power, setpoint, AI mode)
+- `ui/thermostat.js`: Thermostat control module (modes, temperature adjustment)
 - `ui/Dockerfile`: Nginx container configuration
+
+### 4. AI Mode (Adaptive Heating Curve)
+
+**Purpose**: Autonomous flow temperature optimization based on outdoor temperature and target room temperature using weather compensation heating curves.
+
+**Technology**: Python 3.11, httpx (for thermostat API integration)
+
+**Key Features**:
+- Three heating curves: ECO (≤21°C), Comfort (21-23°C), High (>23°C)
+- Weather compensation: Adjusts flow temperature based on outdoor conditions
+- Thermostat integration: Uses target room temperature to select appropriate curve
+- JSON-based configuration: User-editable heating curves and parameters
+- Hot-reload capability: Update configuration without service restart
+- Autonomous operation: Runs every 10 minutes when enabled
+- Safety features: Min/max temperature limits, hysteresis, adjustment thresholds
+- UI integration: Manual/AI toggle switch with slider disable when AI active
+
+**Architecture**:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│              Adaptive Controller (Background Task)          │
+│                                                             │
+│  Every 10 minutes (when AI Mode enabled):                  │
+│                                                             │
+│  1. Read outdoor temperature ──────► Modbus (Heat Pump)   │
+│                                                             │
+│  2. Read target room temperature ──► HTTP (Thermostat API) │
+│                                                             │
+│  3. Select heating curve ──────────► heating_curve.py      │
+│     - ECO: target ≤ 21°C                                    │
+│     - Comfort: 21°C < target ≤ 23°C                         │
+│     - High: target > 23°C                                   │
+│                                                             │
+│  4. Calculate optimal flow temp ───► Based on outdoor temp  │
+│     - Outdoor < -10°C: 46-50°C (curve dependent)            │
+│     - Outdoor < 0°C: 43-47°C                                │
+│     - Outdoor < 10°C: 38-42°C                               │
+│     - Outdoor < 18°C: 33-37°C                               │
+│     - Outdoor ≥ 18°C: Heat pump OFF                         │
+│                                                             │
+│  5. Adjust if needed ──────────────► Modbus write           │
+│     - Only if |current - optimal| > 2°C (threshold)         │
+│     - Apply safety limits (30-50°C)                         │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Configuration** (`heating_curve_config.json`):
+```json
+{
+  "heating_curves": {
+    "eco": { "target_temp_range": [0, 21.0], "curve": [...] },
+    "comfort": { "target_temp_range": [21.0, 23.0], "curve": [...] },
+    "high": { "target_temp_range": [23.0, 999], "curve": [...] }
+  },
+  "settings": {
+    "outdoor_cutoff_temp": 18.0,
+    "outdoor_restart_temp": 17.0,
+    "update_interval_seconds": 600,
+    "min_flow_temp": 30.0,
+    "max_flow_temp": 50.0,
+    "adjustment_threshold": 2.0,
+    "hysteresis_outdoor": 1.0
+  }
+}
+```
+
+**Data Flow**:
+1. User toggles AI mode via UI switch
+2. POST `/ai-mode` enables adaptive controller
+3. Background loop wakes every 10 minutes
+4. Fetches outdoor temp (from heat pump) and target room temp (from thermostat)
+5. Calculates optimal flow temperature using heating curves
+6. Writes new setpoint to heat pump if adjustment needed
+7. UI polls `/ai-mode` status to display diagnostics
+
+**UI Components**:
+- Manual/AI toggle switch (in Power Control panel)
+- Status text: "Manual Control" / "AI Mode Active"
+- Temperature slider: Disabled when AI mode active
+- Visual feedback: Green text when AI active, gray when manual
 
 ## Modbus Register Mapping
 

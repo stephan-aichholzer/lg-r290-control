@@ -7,7 +7,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application files
-COPY main.py modbus_client.py /app/
+COPY main.py modbus_client.py heating_curve.py adaptive_controller.py heating_curve_config.json /app/
 
 # Expose FastAPI port
 EXPOSE 8000

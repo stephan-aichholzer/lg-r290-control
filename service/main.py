@@ -15,6 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from modbus_client import HeatPumpModbusClient
+from adaptive_controller import AdaptiveController
 
 # Configure logging
 logging.basicConfig(
@@ -26,17 +27,21 @@ logger = logging.getLogger(__name__)
 # Global Modbus client instance
 modbus_client: Optional[HeatPumpModbusClient] = None
 
+# Global adaptive controller instance
+adaptive_controller: Optional[AdaptiveController] = None
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Manage application lifecycle (startup/shutdown)."""
-    global modbus_client
+    global modbus_client, adaptive_controller
 
     # Startup
     host = os.getenv("MODBUS_HOST", "heatpump-mock")
     port = int(os.getenv("MODBUS_PORT", "502"))
     unit_id = int(os.getenv("MODBUS_UNIT_ID", "1"))
     poll_interval = int(os.getenv("POLL_INTERVAL", "5"))
+    thermostat_api_url = os.getenv("THERMOSTAT_API_URL", "http://192.168.2.11:8001")
 
     logger.info(f"Connecting to Modbus TCP at {host}:{port}, Unit ID: {unit_id}")
     modbus_client = HeatPumpModbusClient(host, port, unit_id, poll_interval)
@@ -44,9 +49,18 @@ async def lifespan(app: FastAPI):
     await modbus_client.connect()
     modbus_client.start_polling()
 
+    # Initialize adaptive controller
+    logger.info("Initializing adaptive controller (AI Mode)")
+    adaptive_controller = AdaptiveController(modbus_client, thermostat_api_url)
+    adaptive_controller.start()
+
     yield
 
     # Shutdown
+    if adaptive_controller:
+        adaptive_controller.stop()
+        logger.info("Adaptive controller stopped")
+
     if modbus_client:
         modbus_client.stop_polling()
         await modbus_client.disconnect()
@@ -96,6 +110,11 @@ class PowerControl(BaseModel):
 class TemperatureSetpoint(BaseModel):
     """Temperature setpoint request."""
     temperature: float
+
+
+class AIModeControl(BaseModel):
+    """AI mode control request."""
+    enabled: bool
 
 
 @app.get("/")
@@ -179,6 +198,59 @@ async def get_raw_registers():
         return raw_data
     except Exception as e:
         logger.error(f"Error getting raw registers: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/ai-mode")
+async def set_ai_mode(control: AIModeControl):
+    """Enable or disable AI mode (adaptive heating curve control)."""
+    if not adaptive_controller:
+        raise HTTPException(status_code=503, detail="Adaptive controller not initialized")
+
+    try:
+        adaptive_controller.enabled = control.enabled
+        status_text = "enabled" if control.enabled else "disabled"
+        logger.info(f"AI Mode {status_text}")
+
+        return {
+            "status": "success",
+            "ai_mode": control.enabled,
+            "message": f"AI Mode {status_text}"
+        }
+    except Exception as e:
+        logger.error(f"Error setting AI mode: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/ai-mode")
+async def get_ai_mode():
+    """Get current AI mode status and information."""
+    if not adaptive_controller:
+        raise HTTPException(status_code=503, detail="Adaptive controller not initialized")
+
+    try:
+        status = adaptive_controller.get_status()
+        return status
+    except Exception as e:
+        logger.error(f"Error getting AI mode status: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/ai-mode/reload-config")
+async def reload_heating_curve_config():
+    """Reload heating curve configuration without restarting service."""
+    if not adaptive_controller:
+        raise HTTPException(status_code=503, detail="Adaptive controller not initialized")
+
+    try:
+        changed = adaptive_controller.reload_config()
+        return {
+            "status": "success",
+            "config_changed": changed,
+            "message": "Configuration reloaded successfully"
+        }
+    except Exception as e:
+        logger.error(f"Error reloading config: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

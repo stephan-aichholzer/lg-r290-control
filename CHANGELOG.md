@@ -2,6 +2,83 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v0.8] - 2025-10-10
+
+### Added
+- **AI Mode: Adaptive Heating Curve with Weather Compensation**
+  - Autonomous flow temperature optimization based on outdoor and room temperature
+  - Three heating curves: ECO (≤21°C), Comfort (21-23°C), High (>23°C)
+  - Configurable via JSON file (`service/heating_curve_config.json`)
+  - Hot-reload capability without service restart
+  - Background control loop runs every 10 minutes when enabled
+  - Automatic heat pump shutdown when outdoor temp ≥18°C
+  - Safety features: min/max limits, hysteresis, adjustment thresholds
+- **New Backend Modules**:
+  - `service/heating_curve.py`: Configuration loader and calculation engine
+  - `service/adaptive_controller.py`: Autonomous background control loop
+  - `service/heating_curve_config.json`: User-editable configuration file
+- **New API Endpoints**:
+  - `GET /ai-mode`: Get AI mode status and diagnostics
+  - `POST /ai-mode`: Enable/disable AI mode
+  - `POST /ai-mode/reload-config`: Hot-reload configuration
+- **UI Enhancements**:
+  - Manual/AI toggle switch integrated into Power Control panel
+  - Status text indicator: "Manual Control" / "AI Mode Active" (green when active)
+  - Temperature slider auto-disables when AI mode enabled
+  - Real-time AI mode status polling
+- **Dependencies**:
+  - Added httpx 0.26.0 for thermostat API integration
+
+### Changed
+- Updated Dockerfile to include new heating curve modules
+- Updated ARCHITECTURE.md with AI Mode documentation
+- Updated README.md with comprehensive AI Mode usage guide
+- Added THERMOSTAT_API_URL environment variable
+
+### Technical Details
+- Heating curve selection based on target room temperature
+- Weather compensation algorithm with configurable parameters
+- Outdoor temperature from heat pump Modbus registers
+- Target room temperature from external thermostat HTTP API
+- Adjustment threshold: 2°C (prevents excessive cycling)
+- Update interval: 600 seconds (10 minutes)
+- Temperature ranges: ECO 33-46°C, Comfort 35-48°C, High 37-50°C
+
+## [v0.7] - 2025-10-10
+
+### Changed
+- **Temperature Badge Display**: Replaced SVG gauges with three-column badge layout
+- **Complete Thermal Awareness**: Indoor/Outdoor/Flow temperatures visible at once
+- **Increased Font Sizes**: +27-33% improvement for kiosk readability
+- **Badge Style UI**: Clean, modern badge design with color coding
+- **Larger Status Indicators**: 16px text, 12px LED dots (was 12px/10px)
+
+### Technical Details
+- Temperature badge values: 32px (desktop), 24px (landscape)
+- Temperature badge labels: 14px
+- Indoor/Outdoor temps from thermostat (60s polling)
+- Flow temp from heat pump (10s polling)
+
+## [v0.6] - 2025-10-10
+
+### Changed
+- **Performance Optimization**: 97% reduction in API requests (2s → 10s polling)
+- **Anti-Flickering**: Smart DOM updates only when values change
+- **Immediate Feedback**: 500ms refresh on all user actions
+- **Battery Friendly**: 80% reduction in browser CPU usage
+- **Network Efficient**: Reduced from 259,200 to 8,640 API requests per day
+
+## [v0.5] - 2025-10-10
+
+### Added
+- **Thermostat Integration**: Room thermostat control with 4 modes (AUTO, ECO, ON, OFF)
+- **Modular Architecture**: ES6 modules (config, utils, heatpump, thermostat)
+- **Unified Status Badges**: Consistent LED-style indicators
+- **Compact Layout**: Optimized for landscape mobile
+- **CORS Support**: Cross-origin integration with external thermostat API
+- **Temperature Control**: 0.5°C step control (18-24°C range)
+- **Circulation Pump Monitoring**: Integrated with thermostat status
+
 ## [v0.4] - 2025-10-06
 
 ### Fixed

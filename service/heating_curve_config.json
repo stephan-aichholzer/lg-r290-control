@@ -1,0 +1,43 @@
+{
+  "heating_curves": {
+    "eco": {
+      "name": "ECO Mode (≤21°C)",
+      "target_temp_range": [0, 21.0],
+      "curve": [
+        {"outdoor_min": -999, "outdoor_max": -10, "flow_temp": 46.0},
+        {"outdoor_min": -10, "outdoor_max": 0, "flow_temp": 43.0},
+        {"outdoor_min": 0, "outdoor_max": 10, "flow_temp": 38.0},
+        {"outdoor_min": 10, "outdoor_max": 18, "flow_temp": 33.0}
+      ]
+    },
+    "comfort": {
+      "name": "Comfort Mode (21-23°C)",
+      "target_temp_range": [21.0, 23.0],
+      "curve": [
+        {"outdoor_min": -999, "outdoor_max": -10, "flow_temp": 48.0},
+        {"outdoor_min": -10, "outdoor_max": 0, "flow_temp": 45.0},
+        {"outdoor_min": 0, "outdoor_max": 10, "flow_temp": 40.0},
+        {"outdoor_min": 10, "outdoor_max": 18, "flow_temp": 35.0}
+      ]
+    },
+    "high": {
+      "name": "High Demand (>23°C)",
+      "target_temp_range": [23.0, 999],
+      "curve": [
+        {"outdoor_min": -999, "outdoor_max": -10, "flow_temp": 50.0},
+        {"outdoor_min": -10, "outdoor_max": 0, "flow_temp": 47.0},
+        {"outdoor_min": 0, "outdoor_max": 10, "flow_temp": 42.0},
+        {"outdoor_min": 10, "outdoor_max": 18, "flow_temp": 37.0}
+      ]
+    }
+  },
+  "settings": {
+    "outdoor_cutoff_temp": 18.0,
+    "outdoor_restart_temp": 17.0,
+    "update_interval_seconds": 600,
+    "min_flow_temp": 30.0,
+    "max_flow_temp": 50.0,
+    "adjustment_threshold": 2.0,
+    "hysteresis_outdoor": 1.0
+  }
+}
