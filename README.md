@@ -2,9 +2,9 @@
 
 A Docker-based software stack for interfacing with an LG R290 7kW heat pump via Modbus TCP protocol with integrated room thermostat control.
 
-**Version**: v0.6 (Stable)
+**Version**: v0.7 (Stable)
 **Platform**: Raspberry Pi 5 / Linux
-**Status**: Production ready for 24/7 kiosk deployment
+**Status**: Production ready for wall-mounted kiosk deployment
 
 ## Features
 
@@ -348,23 +348,37 @@ The system is designed for easy extension:
 
 See [CHANGELOG.md](CHANGELOG.md) for detailed version history.
 
-### v0.6 - Current (2025-10-10)
+### v0.7 - Current (2025-10-10)
 
-**Status**: Production ready for 24/7 kiosk deployment
+**Status**: Production ready for wall-mounted kiosk deployment
 
 **Latest Features:**
+- ✅ **Temperature Badge Display**: Three-column layout (Indoor/Outdoor/Flow)
+- ✅ **Complete Thermal Awareness**: All sensor temperatures visible at a glance
+- ✅ **Increased Font Sizes**: +27-33% for kiosk readability (2-3m viewing distance)
+- ✅ **Badge Style UI**: Replaced SVG gauges with clean, modern badges
+- ✅ **Color Coding**: Flow temp in red, ambient temps in white
+- ✅ **Larger Status Indicators**: 16px text, 12px LED dots (was 12px/10px)
+
+**Temperature Display:**
+- Indoor: 32px values from thermostat sensors (60s polling)
+- Outdoor: 32px values from thermostat sensors (60s polling)
+- Flow: 32px values from heat pump (10s polling)
+- Landscape: 24px values (still highly readable)
+
+**Font Size Improvements:**
+- Temperature badge labels: 11px → 14px (+27%)
+- Temperature badge values: 24px → 32px (+33%)
+- Status badge text: 12px → 16px (+33%)
+- Status LED dots: 10px → 12px (+20%)
+- Perfect visibility from across the room
+
+### v0.6 (2025-10-10)
 - ✅ **Performance Optimization**: 97% reduction in API requests (2s → 10s polling)
 - ✅ **Anti-Flickering**: Smart DOM updates only when values change
 - ✅ **Immediate Feedback**: 500ms refresh on all user actions
-- ✅ **Unified Styling**: Cleaned up redundant CSS, all status badges perfectly uniform
-- ✅ **Battery Friendly**: 80% reduction in browser CPU usage for mobile kiosk
+- ✅ **Battery Friendly**: 80% reduction in browser CPU usage
 - ✅ **Network Efficient**: Reduced from 259,200 to 8,640 API requests per day
-- ✅ **Smooth Animations**: LED indicators pulse continuously without interruption
-
-**Traffic Reduction:**
-- Heat pump polling: 2s → 10s (6 requests/min instead of 30)
-- User actions: Immediate 500ms refresh (feels instant)
-- Network data: ~60 KB/hour (was ~1.8 MB/hour)
 
 ### v0.5 (2025-10-10)
 - ✅ **Thermostat Integration**: Room thermostat control with 4 modes (AUTO, ECO, ON, OFF)
