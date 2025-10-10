@@ -169,13 +169,16 @@ class HeatingCurveConfig:
             min(settings['max_flow_temp'], flow_temp)
         )
 
+        # Round to whole number (no decimals for flow temperature)
+        flow_temp = round(flow_temp)
+
         if flow_temp != original_temp:
             logger.info(
                 f"Flow temp adjusted from {original_temp}°C to {flow_temp}°C "
                 f"(limits: {settings['min_flow_temp']}-{settings['max_flow_temp']}°C)"
             )
 
-        return flow_temp
+        return float(flow_temp)
 
     def _select_heating_curve(self, target_room_temp: float) -> Optional[Dict]:
         """Select the appropriate heating curve based on target room temperature"""
