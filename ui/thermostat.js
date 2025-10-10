@@ -19,7 +19,9 @@ export async function init() {
         tempUpBtn: document.getElementById('temp-up'),
         tempDownBtn: document.getElementById('temp-down'),
         pumpStatusText: document.getElementById('pump-status-text'),
-        pumpDot: document.querySelector('.pump-dot')
+        pumpDot: document.querySelector('.pump-dot'),
+        indoorTempValue: document.getElementById('indoor-temp-value'),
+        outdoorTempValue: document.getElementById('outdoor-temp-value')
     };
 
     console.log('Thermostat elements initialized:', {
@@ -154,6 +156,26 @@ function updateUI(data) {
         elements.pumpDot.classList.remove('on');
         elements.pumpStatusText.textContent = 'OFF';
         console.log('Pump turned OFF');
+    }
+
+    // Update indoor and outdoor temperatures from thermostat sensors
+    if (data.all_temps) {
+        const indoorTemp = data.all_temps.temp_indoor;
+        const outdoorTemp = data.all_temps.temp_outdoor;
+
+        if (indoorTemp !== undefined) {
+            const newIndoorText = `${indoorTemp.toFixed(1)}°C`;
+            if (elements.indoorTempValue.textContent !== newIndoorText) {
+                elements.indoorTempValue.textContent = newIndoorText;
+            }
+        }
+
+        if (outdoorTemp !== undefined) {
+            const newOutdoorText = `${outdoorTemp.toFixed(1)}°C`;
+            if (elements.outdoorTempValue.textContent !== newOutdoorText) {
+                elements.outdoorTempValue.textContent = newOutdoorText;
+            }
+        }
     }
 }
 

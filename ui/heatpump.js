@@ -151,10 +151,7 @@ function updateUI(data) {
         }
     }
 
-    // Temperature gauge - Flow only (updateGauge already optimized)
-    updateGauge('gauge-flow', data.flow_temperature, CONFIG.GAUGE_MIN, CONFIG.GAUGE_MAX);
-
-    // Only update text if value changed
+    // Flow temperature - update badge display only if value changed
     const newFlowTemp = `${data.flow_temperature.toFixed(1)}°C`;
     if (elements.flowTempValue.textContent !== newFlowTemp) {
         elements.flowTempValue.textContent = newFlowTemp;

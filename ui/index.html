@@ -60,18 +60,22 @@
                 </div>
             </section>
 
-            <!-- Flow Temperature Gauge -->
-            <section class="gauges">
-                <h2>Flow Temperature</h2>
-                <div class="gauge-container-single">
-                    <div class="gauge">
-                        <svg viewBox="0 0 200 120" class="gauge-svg">
-                            <path class="gauge-bg" d="M 20 100 A 80 80 0 0 1 180 100"></path>
-                            <path id="gauge-flow" class="gauge-fill gauge-fill-red" d="M 20 100 A 80 80 0 0 1 180 100"></path>
-                        </svg>
-                        <div class="gauge-value gauge-value-red" id="flow-temp-value">0.0°C</div>
+            <!-- Temperature Display -->
+            <section class="temperature-display">
+                <h2>Temperatures</h2>
+                <div class="temp-badges">
+                    <div class="temp-badge">
+                        <div class="temp-badge-label">Indoor</div>
+                        <div class="temp-badge-value" id="indoor-temp-value">--.-°C</div>
                     </div>
-                    <div class="gauge-subtitle">Outlet (Hotter)</div>
+                    <div class="temp-badge">
+                        <div class="temp-badge-label">Outdoor</div>
+                        <div class="temp-badge-value" id="outdoor-temp-value">--.-°C</div>
+                    </div>
+                    <div class="temp-badge temp-badge-flow">
+                        <div class="temp-badge-label">Flow</div>
+                        <div class="temp-badge-value" id="flow-temp-value">--.-°C</div>
+                    </div>
                 </div>
             </section>
 

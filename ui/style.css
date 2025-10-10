@@ -86,10 +86,9 @@ main {
         grid-row: 1;
     }
 
-    .gauges {
+    .temperature-display {
         grid-column: 2;
         grid-row: 2;
-        padding: 4px 8px !important;
     }
 
     .thermostat-widget {
@@ -234,10 +233,10 @@ input:checked + .slider:before {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 6px 12px;
+    padding: 8px 14px;
     background: #374151;
     border-radius: 12px;
-    font-size: 12px;
+    font-size: 16px;
     text-align: center;
     border: 1px solid #4b5563;
     font-weight: 700;
@@ -245,8 +244,8 @@ input:checked + .slider:before {
 
 /* Status indicator dot */
 .status-dot {
-    width: 10px;
-    height: 10px;
+    width: 12px;
+    height: 12px;
     border-radius: 50%;
     background: #6b7280;
     box-shadow: 0 0 0 2px rgba(107, 114, 128, 0.2);
@@ -354,14 +353,14 @@ input:checked + .slider:before {
     }
 
     .status-badge-compact {
-        font-size: 10px;
-        padding: 4px 8px;
+        font-size: 13px;
+        padding: 6px 10px;
         gap: 6px;
     }
 
     .status-dot {
-        width: 8px;
-        height: 8px;
+        width: 10px;
+        height: 10px;
     }
 
     .metric-card {
@@ -688,6 +687,87 @@ footer {
 }
 
 /* Removed old thermostat pump styles - now using unified .status-badge-compact */
+
+/* Temperature Badge Display (replaces gauges) */
+.temperature-display {
+    background: #1f2937;
+    border-radius: 16px;
+    padding: 12px;
+    border: 1px solid #374151;
+}
+
+.temperature-display h2 {
+    margin: 0 0 12px 0;
+    font-size: 14px;
+    color: #9ca3af;
+    font-weight: 600;
+}
+
+.temp-badges {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+}
+
+.temp-badge {
+    background: #0a0a0a;
+    border: 1px solid #374151;
+    border-radius: 12px;
+    padding: 12px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.temp-badge-label {
+    font-size: 14px;
+    color: #9ca3af;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.temp-badge-value {
+    font-size: 32px;
+    font-weight: 700;
+    color: #e5e7eb;
+    line-height: 1;
+}
+
+/* Flow temperature gets red color highlight */
+.temp-badge-flow .temp-badge-value {
+    color: #ef4444;
+}
+
+/* Landscape responsive adjustments for temperature display */
+@media (orientation: landscape) and (max-height: 768px) {
+    .temperature-display {
+        padding: 6px 10px;
+    }
+
+    .temperature-display h2 {
+        font-size: 11px;
+        margin-bottom: 6px;
+    }
+
+    .temp-badges {
+        gap: 6px;
+    }
+
+    .temp-badge {
+        padding: 8px 6px;
+        gap: 4px;
+    }
+
+    .temp-badge-label {
+        font-size: 11px;
+    }
+
+    .temp-badge-value {
+        font-size: 24px;
+    }
+}
 
 /* Landscape responsive adjustments for thermostat */
 @media (orientation: landscape) and (max-height: 768px) {
