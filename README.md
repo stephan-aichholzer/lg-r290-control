@@ -1,8 +1,8 @@
 # LG R290 Heat Pump Control System
 
-A Docker-based software stack for interfacing with an LG R290 7kW heat pump via Modbus TCP protocol.
+A Docker-based software stack for interfacing with an LG R290 7kW heat pump via Modbus TCP protocol with integrated room thermostat control.
 
-**Version**: v0.4 (Stable)
+**Version**: v0.5 (Stable)
 **Platform**: Raspberry Pi 5 / Linux
 **Status**: Production ready for kiosk deployment
 
@@ -17,14 +17,23 @@ A Docker-based software stack for interfacing with an LG R290 7kW heat pump via 
 
 ### Web UI Features
 - **Dark Mode Design**: Pure black background with high contrast for OLED displays
+- **Modular ES6 Architecture**: Clean separation of concerns (config, utils, heatpump, thermostat modules)
 - **Dual Layout Support**:
   - Desktop: Traditional vertical layout with full-sized gauges
-  - Landscape (Mobile): Optimized 2×2 table layout with 50% larger gauges
-- **Real-time Monitoring**: Temperature gauges, flow rate, pressure, operating mode
-- **Real-time Synchronization**: All values including temperature slider update automatically (2s interval)
-- **Control Interface**: Power ON/OFF, temperature setpoint slider with external change detection
-- **Kiosk Mode Ready**: Perfect for wall-mounted displays - slider syncs even when changed via LG app
-- **Network Access**: Dynamic hostname detection works from any device on local network
+  - Landscape (Mobile): Optimized compact layout fits single screen without scrolling
+- **Heat Pump Control**:
+  - Real-time monitoring: Flow temperature gauge, power status
+  - Unified status badges: Heat pump, compressor, circulation pump (with LED indicators)
+  - Temperature setpoint slider with auto-sync (2s interval)
+  - Power ON/OFF control
+- **Room Thermostat Integration**:
+  - 4 operating modes: AUTO, ECO, ON, OFF
+  - Target temperature control (18-24°C, 0.5°C steps)
+  - Circulation pump status indicator
+  - 60-second polling interval
+  - Integrates with Shelly BT Thermostat API
+- **Kiosk Mode Optimized**: Perfect for wall-mounted mobile displays in landscape orientation
+- **Cross-Origin Support**: CORS-enabled for multi-service integration
 
 ## Architecture
 
@@ -107,6 +116,38 @@ MODBUS_UNIT_ID=1
 ```bash
 docker-compose up -d heatpump-service heatpump-ui
 ```
+
+### Thermostat Integration
+
+The UI integrates with the Shelly BT Thermostat Control API (separate project) for room temperature control. To enable this integration:
+
+1. Ensure the thermostat API is running at `http://192.168.2.11:8001` (or update `ui/config.js`)
+
+2. The thermostat API must have CORS enabled. Add to your thermostat's `main.py`:
+```python
+from fastapi.middleware.cors import CORSMiddleware
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+```
+
+3. Default thermostat parameters (set in `ui/config.js`):
+   - Hysteresis: 0.1°C
+   - Min ON time: 40 minutes
+   - Min OFF time: 10 minutes
+   - Temperature sample count: 4
+   - Control interval: 60 seconds
+
+4. The UI provides:
+   - 4 mode buttons (AUTO, ECO, ON, OFF)
+   - Target temperature control (18-24°C, 0.5°C steps)
+   - Circulation pump status indicator
+   - 60-second polling interval
 
 ## Configuration
 
@@ -205,7 +246,11 @@ lg_r290_control/
     ├── Dockerfile
     ├── index.html
     ├── style.css
-    └── app.js
+    ├── app.js           # Main entry point
+    ├── config.js        # Configuration constants
+    ├── utils.js         # Shared utilities
+    ├── heatpump.js      # Heat pump control module
+    └── thermostat.js    # Thermostat control module
 ```
 
 ### Viewing Logs
@@ -303,17 +348,25 @@ The system is designed for easy extension:
 
 See [CHANGELOG.md](CHANGELOG.md) for detailed version history.
 
-### v0.4 - Current (2025-10-06)
+### v0.5 - Current (2025-10-10)
 
-**Status**: Production ready for kiosk deployment
+**Status**: Production ready for mobile kiosk deployment
 
 **Latest Features:**
+- ✅ **Thermostat Integration**: Room thermostat control with 4 modes (AUTO, ECO, ON, OFF)
+- ✅ **Modular Architecture**: ES6 modules (config, utils, heatpump, thermostat)
+- ✅ **Unified Status Badges**: Consistent LED-style indicators for all three statuses
+- ✅ **Compact Layout**: Optimized for landscape mobile - fits without scrolling
+- ✅ **CORS Support**: Cross-origin integration with external thermostat API
+- ✅ **Temperature Control**: 0.5°C step control (18-24°C range)
+- ✅ **Circulation Pump Monitoring**: Integrated with thermostat status
+
+### v0.4 (2025-10-06)
 - ✅ Real-time slider synchronization for kiosk mode
 - ✅ Temperature slider updates automatically when changed externally
 - ✅ Complete register monitoring (target temp, water pump status)
 - ✅ Optimized 2×2 landscape layout with 50% larger gauges
 - ✅ Touch and mouse event support for mobile and desktop
-- ✅ Debug logging for troubleshooting
 
 **What Works:**
 - ✅ Complete Docker stack with mock server, API, and UI

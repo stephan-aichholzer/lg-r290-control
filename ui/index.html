@@ -29,9 +29,25 @@
                     <span class="switch-label">ON</span>
                 </div>
                 <div class="status-indicator">
-                    <span class="label">Status</span>
-                    <span id="power-status" class="value">OFF</span>
-                    <span id="compressor-status" class="badge">Compressor: OFF</span>
+                    <span class="label">Heat Pump</span>
+                    <div class="status-badge-compact">
+                        <span class="status-dot" id="power-dot"></span>
+                        <span id="power-status">OFF</span>
+                    </div>
+                </div>
+                <div class="status-indicator">
+                    <span class="label">Compressor</span>
+                    <div class="status-badge-compact">
+                        <span class="status-dot" id="compressor-dot"></span>
+                        <span id="compressor-status">OFF</span>
+                    </div>
+                </div>
+                <div class="status-indicator">
+                    <span class="label">Circulation Pump</span>
+                    <div class="status-badge-compact">
+                        <span class="status-dot pump-dot"></span>
+                        <span id="pump-status-text">OFF</span>
+                    </div>
                 </div>
             </section>
 
@@ -44,66 +60,39 @@
                 </div>
             </section>
 
-            <!-- Center Panel: Temperature Gauges -->
+            <!-- Flow Temperature Gauge -->
             <section class="gauges">
-                <h2>Temperature Monitoring</h2>
-                <div class="gauge-grid">
-                    <div class="gauge-container">
-                        <div class="gauge-label">Flow (Outlet)</div>
-                        <div class="gauge">
-                            <svg viewBox="0 0 200 120" class="gauge-svg">
-                                <path class="gauge-bg" d="M 20 100 A 80 80 0 0 1 180 100"></path>
-                                <path id="gauge-flow" class="gauge-fill gauge-fill-red" d="M 20 100 A 80 80 0 0 1 180 100"></path>
-                            </svg>
-                            <div class="gauge-value gauge-value-red" id="flow-temp-value">0.0°C</div>
-                        </div>
-                        <div class="gauge-subtitle">Hotter</div>
+                <h2>Flow Temperature</h2>
+                <div class="gauge-container-single">
+                    <div class="gauge">
+                        <svg viewBox="0 0 200 120" class="gauge-svg">
+                            <path class="gauge-bg" d="M 20 100 A 80 80 0 0 1 180 100"></path>
+                            <path id="gauge-flow" class="gauge-fill gauge-fill-red" d="M 20 100 A 80 80 0 0 1 180 100"></path>
+                        </svg>
+                        <div class="gauge-value gauge-value-red" id="flow-temp-value">0.0°C</div>
                     </div>
-
-                    <div class="gauge-container">
-                        <div class="gauge-label">Return (Inlet)</div>
-                        <div class="gauge">
-                            <svg viewBox="0 0 200 120" class="gauge-svg">
-                                <path class="gauge-bg" d="M 20 100 A 80 80 0 0 1 180 100"></path>
-                                <path id="gauge-return" class="gauge-fill" d="M 20 100 A 80 80 0 0 1 180 100"></path>
-                            </svg>
-                            <div class="gauge-value" id="return-temp-value">0.0°C</div>
-                        </div>
-                        <div class="gauge-subtitle">Colder</div>
-                    </div>
+                    <div class="gauge-subtitle">Outlet (Hotter)</div>
                 </div>
             </section>
 
-            <!-- Right Panel: Metrics and Controls -->
-            <div class="right-panel">
-                <!-- System Metrics -->
-                <section class="metrics">
-                    <h2>System Metrics</h2>
-                    <div class="metrics-grid">
-                        <div class="metric-card">
-                            <div class="metric-label">Flow Rate</div>
-                            <div class="metric-value" id="flow-rate">0.0 L/m</div>
-                        </div>
-                        <div class="metric-card">
-                            <div class="metric-label">Pressure</div>
-                            <div class="metric-value" id="water-pressure">0.0 bar</div>
-                        </div>
-                        <div class="metric-card">
-                            <div class="metric-label">Mode</div>
-                            <div class="metric-value" id="operating-mode">--</div>
-                        </div>
+            <!-- Thermostat Widget -->
+            <section class="thermostat-widget">
+                <h2>Room Thermostat</h2>
+                <div class="thermostat-content">
+                    <div class="mode-selector">
+                        <button class="mode-btn" data-mode="AUTO">AUTO</button>
+                        <button class="mode-btn" data-mode="ECO">ECO</button>
+                        <button class="mode-btn" data-mode="ON">ON</button>
+                        <button class="mode-btn" data-mode="OFF">OFF</button>
                     </div>
-                </section>
-
-                <!-- Error Status -->
-                <section class="error-section" id="error-section" style="display: none;">
-                    <h2>Error Status</h2>
-                    <div class="error-box">
-                        <span class="error-icon">⚠</span>
-                        <span id="error-message">Error Code: 0</span>
+                    <div class="temp-control">
+                        <span class="temp-label">Target:</span>
+                        <button class="temp-btn" id="temp-down">−</button>
+                        <span class="temp-display" id="thermostat-temp">22.0°C</span>
+                        <button class="temp-btn" id="temp-up">+</button>
                     </div>
-                </section>
-            </div>
+                </div>
+            </section>
         </main>
 
         <footer>
@@ -111,6 +100,6 @@
         </footer>
     </div>
 
-    <script src="app.js"></script>
+    <script type="module" src="app.js"></script>
 </body>
 </html>
