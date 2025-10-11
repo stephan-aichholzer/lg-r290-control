@@ -37,9 +37,16 @@ A Docker-based software stack for interfacing with an LG R290 7kW heat pump via 
   - Adaptive heating curve: Automatic flow temperature optimization
   - Weather compensation: Adjusts based on outdoor temperature
   - 3 heating curves: ECO (≤21°C), Comfort (21-23°C), High (>23°C)
-  - Autonomous operation: Evaluates every 10 minutes
+  - Autonomous operation: Evaluates every 30 seconds
   - User-editable configuration via JSON
   - Automatic shutdown when outdoor temp ≥18°C
+- **Scheduler (NEW)**:
+  - Time-based automatic room temperature control
+  - Week-based schedules (separate weekday/weekend patterns)
+  - Discrete event triggering at exact scheduled times
+  - Mode-aware: Only applies in AUTO/ON modes (respects ECO/OFF)
+  - Hot-reloadable configuration via API
+  - Vienna timezone with automatic DST handling
 - **Kiosk Mode Optimized**: Perfect for wall-mounted mobile displays in landscape orientation
 - **Cross-Origin Support**: CORS-enabled for multi-service integration
 
@@ -530,6 +537,64 @@ See [CHANGELOG.md](CHANGELOG.md) for detailed version history.
 2. Verify all register readings with actual heat pump
 3. Deploy to production kiosk environment
 4. Consider data logging (InfluxDB) for historical trends
+
+## Documentation
+
+Comprehensive feature documentation is available in the `docs/` directory:
+
+### Feature Documentation
+
+- **[Scheduler](docs/SCHEDULER.md)** - Time-based automatic temperature scheduling
+  - Week-based schedules (weekday/weekend patterns)
+  - Discrete event triggering at exact times
+  - Mode-aware operation (respects ECO/OFF)
+  - Hot-reloadable configuration
+  - Vienna timezone with DST support
+
+- **[AI Mode](docs/AI_MODE.md)** - Adaptive heating curve control
+  - Autonomous weather compensation
+  - Three heating curves (ECO, Comfort, High Demand)
+  - Outdoor temperature-based optimization
+  - Thermostat integration for target room temp
+  - Configurable via JSON
+
+- **[Heat Pump Control](docs/HEAT_PUMP_CONTROL.md)** - Manual Modbus TCP control
+  - Complete register mapping
+  - Power and temperature control
+  - Real-time status monitoring
+  - Mock server for development
+  - Hardware integration guide
+
+- **[Thermostat Integration](docs/THERMOSTAT_INTEGRATION.md)** - Room temperature control
+  - Cross-stack Docker communication
+  - Circulation pump control
+  - Mode management (AUTO/ECO/ON/OFF)
+  - Indoor/outdoor temperature sensors
+
+### System Documentation
+
+- **[Deployment Guide](docs/DEPLOYMENT.md)** - Docker setup and configuration
+  - Environment variables
+  - Development vs production modes
+  - Network configuration
+  - Hardware setup (Waveshare gateway)
+  - SystemD service configuration
+
+- **[API Reference](docs/API_REFERENCE.md)** - Complete REST API documentation
+  - All endpoints with examples
+  - Request/response formats
+  - Error codes and handling
+  - Usage examples (cURL, JavaScript, Python)
+
+### Architecture
+
+- **[ARCHITECTURE.md](ARCHITECTURE.md)** - System architecture overview
+- **[UML Diagrams](UML/)** - Sequence diagrams for all major flows
+  - Scheduler control flow
+  - AI Mode operation
+  - Heat pump control
+  - Thermostat integration
+  - Network architecture
 
 ## License
 
