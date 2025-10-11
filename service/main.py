@@ -16,6 +16,7 @@ from pydantic import BaseModel
 
 from modbus_client import HeatPumpModbusClient
 from adaptive_controller import AdaptiveController
+from scheduler import Scheduler
 
 # Configure logging
 logging.basicConfig(
@@ -30,11 +31,17 @@ modbus_client: Optional[HeatPumpModbusClient] = None
 # Global adaptive controller instance
 adaptive_controller: Optional[AdaptiveController] = None
 
+# Global scheduler instance
+scheduler: Optional[Scheduler] = None
+
+# Feature flags - set to False to disable features
+ENABLE_SCHEDULER = True  # Set to False to disable scheduler
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Manage application lifecycle (startup/shutdown)."""
-    global modbus_client, adaptive_controller
+    global modbus_client, adaptive_controller, scheduler
 
     # Startup
     host = os.getenv("MODBUS_HOST", "heatpump-mock")
@@ -54,9 +61,22 @@ async def lifespan(app: FastAPI):
     adaptive_controller = AdaptiveController(modbus_client, thermostat_api_url)
     adaptive_controller.start()
 
+    # Initialize scheduler (if enabled)
+    if ENABLE_SCHEDULER:
+        logger.info("Initializing scheduler")
+        scheduler = Scheduler(thermostat_api_url, schedule_file="schedule.json")
+        # Start scheduler as background task
+        asyncio.create_task(scheduler.run())
+        logger.info(f"Scheduler started (enabled={scheduler.enabled})")
+    else:
+        logger.info("Scheduler disabled via ENABLE_SCHEDULER flag")
+
     yield
 
     # Shutdown
+    if scheduler and ENABLE_SCHEDULER:
+        logger.info("Scheduler stopped")
+
     if adaptive_controller:
         adaptive_controller.stop()
         logger.info("Adaptive controller stopped")
@@ -251,6 +271,46 @@ async def reload_heating_curve_config():
         }
     except Exception as e:
         logger.error(f"Error reloading config: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/schedule")
+async def get_schedule_status():
+    """Get current scheduler status."""
+    if not ENABLE_SCHEDULER:
+        return {
+            "enabled": False,
+            "message": "Scheduler feature is disabled (ENABLE_SCHEDULER=False)"
+        }
+
+    if not scheduler:
+        raise HTTPException(status_code=503, detail="Scheduler not initialized")
+
+    try:
+        status = scheduler.get_status()
+        return status
+    except Exception as e:
+        logger.error(f"Error getting scheduler status: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/schedule/reload")
+async def reload_schedule_config():
+    """Reload schedule configuration without restarting service."""
+    if not ENABLE_SCHEDULER:
+        raise HTTPException(
+            status_code=503,
+            detail="Scheduler feature is disabled (ENABLE_SCHEDULER=False)"
+        )
+
+    if not scheduler:
+        raise HTTPException(status_code=503, detail="Scheduler not initialized")
+
+    try:
+        result = scheduler.reload_schedule()
+        return result
+    except Exception as e:
+        logger.error(f"Error reloading schedule: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

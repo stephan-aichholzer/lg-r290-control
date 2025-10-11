@@ -27,6 +27,7 @@ services:
       - MODBUS_UNIT_ID=${MODBUS_UNIT_ID:-1}
       - POLL_INTERVAL=${POLL_INTERVAL:-5}
       - THERMOSTAT_API_URL=${THERMOSTAT_API_URL:-http://iot-api:8000}
+      - TZ=${TZ:-Europe/Vienna}
     depends_on:
       - heatpump-mock
     networks:
