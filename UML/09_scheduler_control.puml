@@ -1,0 +1,154 @@
+@startuml Scheduler - Time-Based Temperature Control
+title Scheduler - Automatic Room Temperature Scheduling
+
+actor User
+participant "Scheduler\n(scheduler.py)" as Scheduler
+participant "schedule.json" as Config
+participant "Thermostat API\n(iot-api:8000)" as Thermostat
+participant "Circulation Pump" as Pump
+
+== Initialization (Service Startup) ==
+note over Scheduler
+  Started by main.py
+  if ENABLE_SCHEDULER = True
+end note
+
+Scheduler -> Config: load_schedule()
+Config --> Scheduler: {\n  enabled: true,\n  schedules: [\n    {days: ["monday",...], periods: [...]},\n    {days: ["saturday",...], periods: [...]}\n  ]\n}
+
+Scheduler -> Scheduler: Validate schedule format\n(days, time format HH:MM)
+
+Scheduler -> Scheduler: Start background task:\nasync def run()
+
+note right of Scheduler
+  Background task runs
+  continuously every 60s
+
+  Uses TZ=Europe/Vienna
+  for local time
+end note
+
+== Background Task - Every 60 Seconds ==
+loop Every 60 seconds (continuous)
+
+    Scheduler -> Scheduler: now = datetime.now()\n(e.g., 2025-10-11 09:42:00 CEST)
+
+    Scheduler -> Scheduler: current_minute = (hour, minute)\n(e.g., (9, 42))
+
+    alt Already Checked This Minute
+        Scheduler -> Scheduler: Skip (deduplication)\ncurrent_minute == last_check_minute
+    else New Minute
+        Scheduler -> Scheduler: last_check_minute = current_minute
+
+        Scheduler -> Scheduler: current_day = "saturday"\ncurrent_time = "09:42"
+
+        Scheduler -> Scheduler: Check if matches\nany scheduled period
+
+        alt No Schedule Match
+            Scheduler -> Scheduler: Log: "No schedule match\nfor Saturday 09:42"
+        else Schedule Match Found
+            Scheduler -> Scheduler: Log: "Schedule match:\nsaturday 09:42 → 23.5°C"
+
+            note over Scheduler
+              Schedule matched!
+              Now check current mode
+              before applying
+            end note
+
+            Scheduler -> Thermostat: GET /api/v1/thermostat/config
+            Thermostat --> Scheduler: 200 OK\n{\n  mode: "AUTO",\n  target_temp: 22.0,\n  eco_temp: 19.0,\n  hysteresis: 0.1,\n  ...\n}
+
+            alt Current Mode is ECO or OFF
+                Scheduler -> Scheduler: Log: "Schedule skipped:\ncurrent mode is ECO\n(only AUTO/ON are affected)"
+                note right of Scheduler
+                  User set ECO/OFF manually.
+                  Scheduler respects this
+                  and does NOT interfere.
+                end note
+            else Current Mode is AUTO or ON
+                Scheduler -> Scheduler: Build new config:\n{\n  mode: "AUTO",\n  target_temp: 23.5,\n  eco_temp: 19.0,\n  hysteresis: 0.1,\n  ...\n}
+
+                note over Scheduler
+                  Force mode to AUTO
+                  and set scheduled
+                  target temperature
+                end note
+
+                Scheduler -> Thermostat: POST /api/v1/thermostat/config\n{\n  mode: "AUTO",\n  target_temp: 23.5,\n  eco_temp: 19.0,\n  ...\n}
+
+                Thermostat -> Thermostat: Update configuration
+                Thermostat -> Thermostat: Evaluate pump control:\nif indoor_temp < (target_temp - hysteresis)\n  → Turn pump ON
+
+                alt Pump Should Run
+                    Thermostat -> Pump: Turn ON
+                    Pump --> Thermostat: Running
+                else Temperature Reached
+                    Thermostat -> Pump: Turn OFF
+                    Pump --> Thermostat: Stopped
+                end
+
+                Thermostat --> Scheduler: 200 OK\n{"mode": "AUTO", "target_temp": 23.5}
+
+                Scheduler -> Scheduler: Log: "✓ Schedule applied:\nmode=AUTO, target_temp=23.5°C\n(was mode=AUTO)"
+            end
+        end
+    end
+
+    Scheduler -> Scheduler: await asyncio.sleep(60)
+end
+
+== User Manually Changes Temperature (Between Scheduled Times) ==
+User -> Thermostat: Set target_temp = 24.5°C\n(via UI)
+Thermostat -> Thermostat: Update target_temp = 24.5
+note right of Scheduler
+  User change is allowed.
+  Scheduler will reset at
+  next scheduled time.
+end note
+
+== Next Scheduled Time Arrives ==
+Scheduler -> Scheduler: Time: 22:00\nMatch: monday 22:00 → 21.0°C
+Scheduler -> Thermostat: GET /api/v1/thermostat/config
+Thermostat --> Scheduler: {mode: "AUTO", target_temp: 24.5}
+note over Scheduler
+  User had set 24.5°C manually.
+  Schedule now resets it back.
+end note
+Scheduler -> Thermostat: POST /api/v1/thermostat/config\n{mode: "AUTO", target_temp: 21.0, ...}
+Thermostat --> Scheduler: 200 OK
+Scheduler -> Scheduler: Log: "✓ Schedule applied:\nmode=AUTO, target_temp=21.0°C\n(was mode=AUTO)"
+
+== User Requests Schedule Status ==
+User -> Scheduler: GET /schedule
+Scheduler --> User: 200 OK\n{\n  enabled: true,\n  schedule_count: 2,\n  current_time: "2025-10-11 09:45:00",\n  current_day: "Saturday",\n  timezone: "CEST",\n  next_check: [9, 45]\n}
+
+== User Edits schedule.json and Reloads ==
+User -> Config: Edit schedule.json\n(change scheduled times)
+User -> Scheduler: POST /schedule/reload
+Scheduler -> Config: load_schedule()
+Config --> Scheduler: New schedule loaded
+Scheduler -> Scheduler: Validate new schedule
+Scheduler --> User: 200 OK\n{\n  success: true,\n  enabled: true,\n  schedule_count: 2,\n  message: "Schedule reloaded\nsuccessfully"\n}
+
+note right of Scheduler
+  Hot reload without
+  container restart.
+
+  Changes apply at
+  next scheduled time.
+end note
+
+== User Disables Scheduler ==
+User -> Config: Edit schedule.json:\n{enabled: false, ...}
+User -> Scheduler: POST /schedule/reload
+Scheduler -> Config: load_schedule()
+Config --> Scheduler: enabled: false
+Scheduler -> Scheduler: Set enabled = False
+note over Scheduler
+  Background task still runs
+  but checks are skipped
+  when enabled = false
+end note
+Scheduler --> User: 200 OK\n{success: true, enabled: false}
+
+@enduml

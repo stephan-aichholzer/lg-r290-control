@@ -14,6 +14,7 @@ This folder contains PlantUML sequence diagrams documenting all major use cases 
 | **06_config_reload.puml** | Hot-reload configuration without restart | Admin, API, Heating Curve |
 | **07_error_handling.puml** | Error scenarios and recovery strategies | AI Controller, All Services |
 | **08_network_architecture.puml** | Docker network topology and communication paths | All Services, Networks |
+| **09_scheduler_control.puml** | Time-based automatic temperature scheduling | Scheduler, Thermostat API, schedule.json |
 
 ## Use Cases Covered
 
@@ -125,6 +126,27 @@ This folder contains PlantUML sequence diagrams documenting all major use cases 
 - `heatpump-net` (bridge, internal)
 - `shelly_bt_temp_default` (bridge, external reference)
 - `modbus_default` (bridge, internal)
+
+### 9. Scheduler Control (`09_scheduler_control.puml`)
+**Scenario**: Automatic time-based room temperature scheduling
+- Background task checking every 60 seconds
+- Load schedule from `schedule.json` (weekday/weekend periods)
+- Match current time against scheduled periods
+- Mode checking (skip if ECO/OFF, apply if AUTO/ON)
+- Force mode to AUTO and set scheduled target temperature
+- Manual override allowed (reset at next scheduled time)
+- Hot-reload configuration via API
+- Timezone support (Vienna CEST/CET with DST)
+
+**Key Endpoints**:
+- `GET /schedule` - Get scheduler status and current time
+- `POST /schedule/reload` - Hot-reload schedule.json
+
+**Key Features**:
+- Discrete events at exact times (not continuous)
+- Respects user ECO/OFF modes (acts as "resetter")
+- Deduplication to prevent multiple triggers per minute
+- Vienna timezone with automatic DST handling
 
 ## How to View Diagrams
 
