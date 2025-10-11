@@ -25,3 +25,15 @@ ENV/
 # OS
 .DS_Store
 Thumbs.db
+
+# Temporary files and screenshots
+*.png
+*.jpg
+*.jpeg
+*.csv
+*.txt
+example_*.html
+CLAUDE.md
+
+# AI Mode logs
+ai_mode_log.csv
