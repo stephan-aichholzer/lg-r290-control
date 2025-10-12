@@ -103,28 +103,29 @@ class AdaptiveController:
             self.last_outdoor_temp = outdoor_temp
             self.last_target_room_temp = target_room_temp
 
-            # Calculate optimal flow temperature
+            # Get current heat pump status (needed for hysteresis logic)
+            status = self.modbus_client.get_cached_status()
+            current_power = status.get('is_on', False)
+            current_setpoint = status.get('target_temperature', 0.0)
+
+            # Calculate optimal flow temperature with hysteresis
             optimal_flow_temp = self.heating_curve.calculate_flow_temp(
                 outdoor_temp,
-                target_room_temp
+                target_room_temp,
+                current_power
             )
 
             self.last_calculated_flow_temp = optimal_flow_temp
             self.last_update = datetime.now()
 
-            # Check if heat pump should be turned off
+            # Check if heat pump should be turned off (or stay off)
             if optimal_flow_temp is None:
-                logger.info(
-                    f"AI Mode: Outdoor temp {outdoor_temp:.1f}°C >= cutoff - "
-                    f"Turning heat pump OFF"
-                )
-                await self.modbus_client.set_power(False)
+                if current_power:
+                    logger.info(
+                        f"AI Mode: Outdoor temp {outdoor_temp:.1f}°C - Turning heat pump OFF"
+                    )
+                    await self.modbus_client.set_power(False)
                 return
-
-            # Get current setpoint
-            status = self.modbus_client.get_cached_status()
-            current_setpoint = status.get('target_temperature', 0.0)
-            current_power = status.get('is_on', False)
 
             # Check if adjustment is needed
             temp_diff = abs(current_setpoint - optimal_flow_temp)

@@ -114,7 +114,8 @@ class HeatingCurveConfig:
     def calculate_flow_temp(
         self,
         outdoor_temp: float,
-        target_room_temp: float
+        target_room_temp: float,
+        current_power_state: bool = False
     ) -> Optional[float]:
         """
         Calculate optimal flow temperature based on heating curve
@@ -122,19 +123,37 @@ class HeatingCurveConfig:
         Args:
             outdoor_temp: Current outdoor temperature in °C
             target_room_temp: Desired room temperature in °C
+            current_power_state: Current heat pump power state (True=ON, False=OFF)
 
         Returns:
             Optimal flow temperature in °C, or None if heat pump should be OFF
         """
         settings = self.config['settings']
+        cutoff_temp = settings['outdoor_cutoff_temp']
+        restart_temp = settings['outdoor_restart_temp']
 
-        # Check cutoff temperature with hysteresis
-        if outdoor_temp >= settings['outdoor_cutoff_temp']:
-            logger.info(
-                f"Outdoor temp {outdoor_temp:.1f}°C >= cutoff "
-                f"{settings['outdoor_cutoff_temp']}°C - Heat pump should be OFF"
-            )
-            return None
+        # Implement hysteresis for ON/OFF control
+        if current_power_state:
+            # Heat pump is currently ON - check cutoff temperature
+            if outdoor_temp >= cutoff_temp:
+                logger.info(
+                    f"Outdoor temp {outdoor_temp:.1f}°C >= cutoff {cutoff_temp}°C - "
+                    f"Heat pump should be OFF"
+                )
+                return None
+        else:
+            # Heat pump is currently OFF - check restart temperature (hysteresis)
+            if outdoor_temp > restart_temp:
+                logger.info(
+                    f"Outdoor temp {outdoor_temp:.1f}°C > restart threshold {restart_temp}°C - "
+                    f"Heat pump stays OFF (hysteresis: cutoff={cutoff_temp}°C, restart={restart_temp}°C)"
+                )
+                return None
+            else:
+                logger.info(
+                    f"Outdoor temp {outdoor_temp:.1f}°C <= restart threshold {restart_temp}°C - "
+                    f"Heat pump should turn ON"
+                )
 
         # Select appropriate heating curve based on target room temperature
         selected_curve = self._select_heating_curve(target_room_temp)
