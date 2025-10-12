@@ -1,0 +1,406 @@
+openapi: 3.1.0
+info:
+  title: LG R290 Heat Pump API
+  description: "\n# LG R290 Heat Pump Control API\n\nREST API for monitoring and controlling\
+    \ LG R290 7kW heat pump via Modbus TCP.\n\n## Features\n- **Heat Pump Control**:\
+    \ Power ON/OFF, temperature setpoint control\n- **AI Mode**: Automatic flow temperature\
+    \ adjustment based on outdoor temperature and heating curves\n- **Scheduler**:\
+    \ Time-based automatic temperature control (weekday/weekend patterns)\n- **Real-time\
+    \ Monitoring**: Live status updates via polling\n\n## Modes\n- **Manual Mode**:\
+    \ Direct control of flow temperature setpoint\n- **AI Mode (Automatic)**: System\
+    \ calculates optimal flow temperature based on:\n  - Outdoor temperature (from\
+    \ Shelly BT sensor)\n  - Target room temperature (from thermostat)\n  - Selected\
+    \ heating curve (Comfort/Standard/Eco)\n\n## Architecture\n- **Service**: FastAPI\
+    \ backend (this API)\n- **Heat Pump**: LG R290 via Modbus TCP\n- **Thermostat**:\
+    \ Shelly BT temperature control system\n- **UI**: Web interface for control and\
+    \ monitoring\n    "
+  version: 1.0.0
+paths:
+  /:
+    get:
+      tags:
+      - System
+      summary: API Information
+      description: Get API service information and version.
+      operationId: root__get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /health:
+    get:
+      tags:
+      - System
+      summary: Health Check
+      description: "Check if the API service is healthy and Modbus connection is active.\n\
+        \n    Returns HTTP 200 if healthy, HTTP 503 if Modbus connection is unavailable."
+      operationId: health_check_health_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /status:
+    get:
+      tags:
+      - Heat Pump
+      summary: Get Heat Pump Status
+      description: "Get complete heat pump status including:\n    - Power state and\
+        \ operating mode\n    - Temperature readings (flow, return, outdoor)\n   \
+        \ - Water flow rate and pressure\n    - Compressor and pump status\n    -\
+        \ Error codes\n\n    Data is cached and updated every 5 seconds via background\
+        \ polling."
+      operationId: get_status_status_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HeatPumpStatus'
+  /power:
+    post:
+      tags:
+      - Heat Pump
+      summary: Control Heat Pump Power
+      description: "Turn the heat pump ON or OFF.\n\n    **Note**: In AI Mode, the\
+        \ system may automatically turn the heat pump ON/OFF\n    based on outdoor\
+        \ temperature and heating curve calculations.\n\n    **Effect**: Writes to\
+        \ Modbus coil register 1 (Enable/Disable Heating/Cooling)."
+      operationId: set_power_power_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PowerControl'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /setpoint:
+    post:
+      tags:
+      - Heat Pump
+      summary: Set Flow Temperature Setpoint
+      description: "Set target flow temperature (water outlet temperature) in \xB0\
+        C.\n\n    **Valid Range**: 20.0\xB0C - 60.0\xB0C\n\n    **Manual Mode**: Temperature\
+        \ is set directly and maintained.\n\n    **AI Mode**: This setting will be\
+        \ overridden by automatic calculations based on:\n    - Outdoor temperature\n\
+        \    - Target room temperature\n    - Selected heating curve\n\n    **Effect**:\
+        \ Writes to Modbus holding register 40003 (Target Temperature Circuit 1)."
+      operationId: set_temperature_setpoint_setpoint_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TemperatureSetpoint'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /registers/raw:
+    get:
+      tags:
+      - Debug
+      summary: Get Raw Modbus Registers
+      description: "Get raw cached Modbus register values for debugging purposes.\n\
+        \n    Returns unprocessed register data including coils, discrete inputs,\n\
+        \    input registers, and holding registers.\n\n    **Use Case**: Troubleshooting,\
+        \ hardware verification, development."
+      operationId: get_raw_registers_registers_raw_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /ai-mode:
+    get:
+      tags:
+      - AI Mode
+      summary: Get AI Mode Status
+      description: "Get current AI Mode status and detailed information including:\n\
+        \    - Enabled/disabled state\n    - Last update timestamp\n    - Current\
+        \ outdoor and target room temperatures\n    - Calculated flow temperature\n\
+        \    - Selected heating curve\n    - Update interval and adjustment threshold\n\
+        \n    **Response includes**:\n    - `enabled`: AI Mode state\n    - `outdoor_temperature`:\
+        \ Current outdoor temp (\xB0C)\n    - `target_room_temperature`: Target room\
+        \ temp from thermostat (\xB0C)\n    - `calculated_flow_temperature`: Optimal\
+        \ flow temp (\xB0C)\n    - `heating_curve`: Selected curve info (name, target\
+        \ temp range)"
+      operationId: get_ai_mode_ai_mode_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+    post:
+      tags:
+      - AI Mode
+      summary: Enable/Disable AI Mode
+      description: "Enable or disable AI Mode (automatic flow temperature control).\n\
+        \n    **AI Mode Enabled (Automatic)**:\n    - System automatically calculates\
+        \ optimal flow temperature\n    - Based on outdoor temperature and target\
+        \ room temperature\n    - Uses predefined heating curves (Comfort/Standard/Eco)\n\
+        \    - Adjusts every 30 seconds\n    - May turn heat pump ON/OFF based on\
+        \ outdoor cutoff temperature\n\n    **AI Mode Disabled (Manual)**:\n    -\
+        \ Flow temperature is controlled manually via /setpoint\n    - No automatic\
+        \ adjustments\n\n    **Default**: AI Mode is enabled by default at startup\
+        \ for deterministic control."
+      operationId: set_ai_mode_ai_mode_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AIModeControl'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /ai-mode/reload-config:
+    post:
+      tags:
+      - AI Mode
+      summary: Reload Heating Curve Configuration
+      description: "Hot-reload heating curve configuration from `heating_curve_config.json`\
+        \ without restarting the service.\n\n    **Use Case**: Update heating curves,\
+        \ outdoor cutoff temperatures, or AI Mode parameters\n    without downtime.\n\
+        \n    **Configuration File**: `service/heating_curve_config.json`\n\n    **Response**:\n\
+        \    - `config_changed`: true if configuration was modified, false if unchanged"
+      operationId: reload_heating_curve_config_ai_mode_reload_config_post
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /schedule:
+    get:
+      tags:
+      - Scheduler
+      summary: Get Scheduler Status
+      description: "Get current scheduler status and configuration.\n\n    **Scheduler**\
+        \ automatically sets thermostat mode to AUTO and adjusts target temperature\n\
+        \    at scheduled times (e.g., 05:00 weekdays, 06:00 weekends).\n\n    **Features**:\n\
+        \    - Weekday/weekend patterns\n    - Multiple periods per day\n    - Only\
+        \ applies when thermostat is in AUTO or ON mode\n    - ECO and OFF modes are\
+        \ not affected\n\n    **Response includes**:\n    - `enabled`: Scheduler state\n\
+        \    - `schedule_count`: Number of schedule patterns\n    - `current_time`:\
+        \ Current system time with timezone\n    - `current_day`: Current day of week"
+      operationId: get_schedule_status_schedule_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /schedule/reload:
+    post:
+      tags:
+      - Scheduler
+      summary: Reload Schedule Configuration
+      description: "Hot-reload schedule configuration from `schedule.json` without\
+        \ restarting the service.\n\n    **Use Case**: Update schedule times or temperature\
+        \ setpoints without downtime.\n\n    **Configuration File**: `service/schedule.json`\n\
+        \n    **Response**:\n    - `enabled`: Scheduler enabled state from config\n\
+        \    - `schedule_count`: Number of schedule patterns loaded"
+      operationId: reload_schedule_config_schedule_reload_post
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+components:
+  schemas:
+    AIModeControl:
+      properties:
+        enabled:
+          type: boolean
+          title: Enabled
+          description: Set to true to enable AI Mode (automatic), false for manual
+            control
+      type: object
+      required:
+      - enabled
+      title: AIModeControl
+      description: Enable or disable AI Mode (automatic flow temperature control based
+        on heating curves).
+      examples:
+      - enabled: true
+      - enabled: false
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
+    HeatPumpStatus:
+      properties:
+        is_on:
+          type: boolean
+          title: Is On
+          description: Heat pump power state (true=ON, false=OFF)
+        water_pump_running:
+          type: boolean
+          title: Water Pump Running
+          description: Water circulation pump status
+        compressor_running:
+          type: boolean
+          title: Compressor Running
+          description: Compressor operational status
+        operating_mode:
+          type: string
+          title: Operating Mode
+          description: Current operating mode (Standby, Heating, Cooling)
+        target_temperature:
+          type: number
+          title: Target Temperature
+          description: "Target flow temperature setpoint in \xB0C (20.0-60.0)"
+        flow_temperature:
+          type: number
+          title: Flow Temperature
+          description: "Actual flow temperature (water outlet) in \xB0C"
+        return_temperature:
+          type: number
+          title: Return Temperature
+          description: "Return temperature (water inlet) in \xB0C"
+        flow_rate:
+          type: number
+          title: Flow Rate
+          description: Water flow rate in liters per minute (LPM)
+        outdoor_temperature:
+          type: number
+          title: Outdoor Temperature
+          description: "Outdoor air temperature in \xB0C (from heat pump sensor)"
+        water_pressure:
+          type: number
+          title: Water Pressure
+          description: Water system pressure in bar
+        error_code:
+          type: integer
+          title: Error Code
+          description: Error code (0 = no error)
+        has_error:
+          type: boolean
+          title: Has Error
+          description: Error flag indicating if any error is present
+      type: object
+      required:
+      - is_on
+      - water_pump_running
+      - compressor_running
+      - operating_mode
+      - target_temperature
+      - flow_temperature
+      - return_temperature
+      - flow_rate
+      - outdoor_temperature
+      - water_pressure
+      - error_code
+      - has_error
+      title: HeatPumpStatus
+      description: Complete heat pump status with all sensor readings and operational
+        state.
+      examples:
+      - compressor_running: false
+        error_code: 0
+        flow_rate: 12.5
+        flow_temperature: 45.0
+        has_error: false
+        is_on: true
+        operating_mode: Standby
+        outdoor_temperature: 5.0
+        return_temperature: 30.0
+        target_temperature: 35.0
+        water_pressure: 1.5
+        water_pump_running: false
+    PowerControl:
+      properties:
+        power_on:
+          type: boolean
+          title: Power On
+          description: Set to true to turn ON, false to turn OFF
+      type: object
+      required:
+      - power_on
+      title: PowerControl
+      description: Control heat pump power state.
+      examples:
+      - power_on: true
+      - power_on: false
+    TemperatureSetpoint:
+      properties:
+        temperature:
+          type: number
+          maximum: 60.0
+          minimum: 20.0
+          title: Temperature
+          description: "Target flow temperature in \xB0C"
+          examples:
+          - 35.0
+          - 40.0
+          - 45.0
+      type: object
+      required:
+      - temperature
+      title: TemperatureSetpoint
+      description: Set target flow temperature (water outlet temperature).
+      examples:
+      - temperature: 35.0
+    ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+            - type: string
+            - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+      type: object
+      required:
+      - loc
+      - msg
+      - type
+      title: ValidationError
+

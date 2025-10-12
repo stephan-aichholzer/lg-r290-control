@@ -4,20 +4,20 @@
       "name": "ECO Mode (≤21°C)",
       "target_temp_range": [0, 21],
       "curve": [
-        {"outdoor_min": -999, "outdoor_max": -10, "flow_temp": 46},
-        {"outdoor_min": -10, "outdoor_max": 0, "flow_temp": 43},
+        {"outdoor_min": -999, "outdoor_max": -10, "flow_temp": 42},
+        {"outdoor_min": -10, "outdoor_max": 0, "flow_temp": 40},
         {"outdoor_min": 0, "outdoor_max": 10, "flow_temp": 38},
-        {"outdoor_min": 10, "outdoor_max": 18, "flow_temp": 33}
+        {"outdoor_min": 10, "outdoor_max": 18, "flow_temp": 36}
       ]
     },
     "comfort": {
       "name": "Comfort Mode (21-23°C)",
       "target_temp_range": [21, 23],
       "curve": [
-        {"outdoor_min": -999, "outdoor_max": -10, "flow_temp": 48},
-        {"outdoor_min": -10, "outdoor_max": 0, "flow_temp": 45},
+        {"outdoor_min": -999, "outdoor_max": -10, "flow_temp": 46},
+        {"outdoor_min": -10, "outdoor_max": 0, "flow_temp": 43},
         {"outdoor_min": 0, "outdoor_max": 10, "flow_temp": 40},
-        {"outdoor_min": 10, "outdoor_max": 18, "flow_temp": 35}
+        {"outdoor_min": 10, "outdoor_max": 18, "flow_temp": 37}
       ]
     },
     "high": {
@@ -25,9 +25,9 @@
       "target_temp_range": [23, 999],
       "curve": [
         {"outdoor_min": -999, "outdoor_max": -10, "flow_temp": 50},
-        {"outdoor_min": -10, "outdoor_max": 0, "flow_temp": 47},
+        {"outdoor_min": -10, "outdoor_max": 0, "flow_temp": 46},
         {"outdoor_min": 0, "outdoor_max": 10, "flow_temp": 42},
-        {"outdoor_min": 10, "outdoor_max": 18, "flow_temp": 37}
+        {"outdoor_min": 10, "outdoor_max": 18, "flow_temp": 38}
       ]
     }
   },
@@ -39,6 +39,6 @@
     "max_flow_temp": 50,
     "adjustment_threshold": 2,
     "hysteresis_outdoor": 1,
-    "default_target_room_temp": 21
+    "default_target_room_temp": 22
   }
 }

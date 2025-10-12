@@ -13,6 +13,7 @@
       "days": ["saturday", "sunday"],
       "periods": [
         {"time": "06:00", "target_temp": 22.2},
+	{"time": "10:00", "target_temp": 22.0},
         {"time": "23:00", "target_temp": 21.0}
       ]
     }

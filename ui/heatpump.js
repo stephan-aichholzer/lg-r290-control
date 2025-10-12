@@ -5,6 +5,7 @@ import { updateGauge, updateConnectionStatus, apiRequest } from './utils.js';
 // State
 let updateTimer = null;
 let userInteractingWithSlider = false;
+let pendingSliderValue = null;  // Track the value we're setting
 
 // UI Elements
 const elements = {
@@ -152,14 +153,28 @@ function updateUI(data) {
         const currentSliderValue = parseFloat(elements.tempSlider.value);
         const deviceTargetTemp = parseFloat(data.target_temperature);
 
-        if (!userInteractingWithSlider) {
+        // If we have a pending value, check if device has caught up
+        if (pendingSliderValue !== null) {
+            if (Math.abs(deviceTargetTemp - pendingSliderValue) < 0.1) {
+                // Device has caught up to our requested value
+                console.log(`Device caught up to pending value ${pendingSliderValue}°C`);
+                pendingSliderValue = null;
+                userInteractingWithSlider = false;
+            } else {
+                // Still waiting for device to catch up
+                console.log(`Waiting for device to catch up (pending: ${pendingSliderValue}°C, device: ${deviceTargetTemp}°C)`);
+            }
+        }
+
+        // Only update slider if user is not interacting and no pending value
+        if (!userInteractingWithSlider && pendingSliderValue === null) {
             if (Math.abs(currentSliderValue - deviceTargetTemp) > 0.1) {
                 elements.tempSlider.value = deviceTargetTemp;
                 elements.tempSliderValue.textContent = deviceTargetTemp.toFixed(1);
                 console.log(`Slider updated from ${currentSliderValue} to ${deviceTargetTemp}`);
             }
         } else {
-            console.log(`Slider update blocked - user interacting (current: ${currentSliderValue}, device: ${deviceTargetTemp})`);
+            console.log(`Slider update blocked - userInteracting: ${userInteractingWithSlider}, pending: ${pendingSliderValue}`);
         }
     }
 
@@ -195,23 +210,34 @@ async function setPower(powerOn) {
 
 /**
  * Set heat pump target temperature
+ * Fire-and-forget to keep UI responsive
  */
-async function setTemperature() {
+function setTemperature() {
     const temperature = parseFloat(elements.tempSlider.value);
 
-    try {
-        const result = await apiRequest(`${CONFIG.HEATPUMP_API_URL}/setpoint`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ temperature })
-        });
+    // Mark this value as pending so updateUI won't override it
+    pendingSliderValue = temperature;
+    console.log(`Setting temperature to ${temperature}°C (marked as pending)`);
 
+    // Fire request in background without blocking UI
+    apiRequest(`${CONFIG.HEATPUMP_API_URL}/setpoint`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ temperature })
+    })
+    .then(result => {
         console.log('Temperature set:', result);
+        // Quick status update after a short delay to check if device caught up
         setTimeout(updateStatus, 500);
-    } catch (error) {
+    })
+    .catch(error => {
         console.error('Failed to set temperature:', error);
         alert('Failed to set temperature');
-    }
+        // Clear pending value on error and revert slider
+        pendingSliderValue = null;
+        userInteractingWithSlider = false;
+        setTimeout(updateStatus, 100);
+    });
 }
 
 /**

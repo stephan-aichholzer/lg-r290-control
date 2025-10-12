@@ -76,8 +76,8 @@ echo ""
 # Thermostat Status
 echo "🌡️  THERMOSTAT"
 echo "------------------------------------------"
-THERMOSTAT_URL=$(docker exec ${CONTAINER} printenv THERMOSTAT_API_URL 2>/dev/null || echo "http://iot-api:8000")
-THERMO_STATUS=$(docker exec ${CONTAINER} curl -s ${THERMOSTAT_URL}/api/v1/thermostat/status 2>/dev/null)
+THERMOSTAT_URL="http://192.168.2.11:8001"
+THERMO_STATUS=$(curl -s ${THERMOSTAT_URL}/api/v1/thermostat/status 2>/dev/null)
 if [ $? -eq 0 ]; then
     echo "$THERMO_STATUS" | jq '{
       mode: .config.mode,

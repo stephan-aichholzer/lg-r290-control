@@ -40,8 +40,8 @@ echo ""
 # Get thermostat target temp (used by AI Mode)
 echo "🌡️  TARGET ROOM TEMPERATURE"
 echo "------------------------------------------"
-THERMOSTAT_URL=$(docker exec ${CONTAINER} printenv THERMOSTAT_API_URL 2>/dev/null || echo "http://iot-api:8000")
-docker exec ${CONTAINER} curl -s ${THERMOSTAT_URL}/api/v1/thermostat/status 2>/dev/null | jq '{
+THERMOSTAT_URL="http://192.168.2.11:8001"
+curl -s ${THERMOSTAT_URL}/api/v1/thermostat/status 2>/dev/null | jq '{
   target_temp: .config.target_temp,
   indoor_temp: .all_temps.temp_indoor,
   mode: .config.mode

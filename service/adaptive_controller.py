@@ -39,8 +39,8 @@ class AdaptiveController:
             "heating_curve_config.json"
         )
 
-        # AI Mode state
-        self.enabled = False
+        # AI Mode state - enabled by default for deterministic heating curve control
+        self.enabled = True
         self.last_update: Optional[datetime] = None
         self.last_outdoor_temp: Optional[float] = None
         self.last_target_room_temp: Optional[float] = None
@@ -57,7 +57,7 @@ class AdaptiveController:
         """Start the adaptive control loop."""
         if self._control_task is None or self._control_task.done():
             self._control_task = asyncio.create_task(self._control_loop())
-            logger.info("Adaptive controller started")
+            logger.info(f"Adaptive controller started (AI Mode: {'enabled' if self.enabled else 'disabled'} by default)")
 
     def stop(self):
         """Stop the adaptive control loop."""
