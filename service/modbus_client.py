@@ -57,10 +57,12 @@ class HeatPumpModbusClient:
     async def connect(self) -> bool:
         """Connect to Modbus TCP server."""
         try:
+            # Long timeout for shared RS-485 gateway (WAGO + LG on same bus)
+            # Gateway queues requests, so we need patience not speed
             self.client = AsyncModbusTcpClient(
                 host=self.host,
                 port=self.port,
-                timeout=10
+                timeout=30  # 30 seconds - handles queue delays from other devices
             )
             await self.client.connect()
             self.is_connected = self.client.connected
