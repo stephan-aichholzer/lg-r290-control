@@ -18,7 +18,7 @@ from pymodbus.exceptions import ModbusException
 # Configuration
 GATEWAY_IP = "192.168.2.10"
 MODBUS_PORT = 8899
-DEVICE_ID = 5  # LG Therma V
+DEVICE_ID = 7  # LG Therma V (changed from 5 to avoid conflict with central control)
 
 # Retry configuration for shared gateway
 MAX_RETRIES = 3
@@ -89,132 +89,86 @@ async def read_with_retry(client, func, *args, description="register", **kwargs)
 
 
 async def read_input_registers(client):
-    """Read Input Registers (0x03) - Sensor readings."""
+    """Read Input Registers (0x03) - Essential sensor readings only."""
     print("\n" + "="*80)
-    print("INPUT REGISTERS (0x03) - Sensor Readings (Read-Only)")
+    print("INPUT REGISTERS (0x03) - Essential Sensors")
     print("="*80)
 
     try:
-        # Read first 14 registers (30001-30014) with retry
-        print("Reading input registers 30001-30014...")
+        # Read only essential registers: 30001-30004, 30013
+        # These are: Error, Status, Water temps (inlet/outlet), Outdoor temp
+        print("Reading essential input registers...")
         await asyncio.sleep(INTER_REQUEST_DELAY)
         result = await read_with_retry(
             client,
             client.read_input_registers,
-            0, 14,
-            description="input registers 30001-30014",
+            0, 14,  # Read 0-13 to get outdoor temp at index 12
+            description="essential input registers",
             slave=DEVICE_ID
         )
 
         if result is None:
             print(f"❌ Failed to read input registers after {MAX_RETRIES} attempts")
-            return
-
-        print(f"✅ Successfully read {len(result.registers)} input registers:\n")
+            return None
 
         regs = result.registers
 
-        # Parse each register according to documentation
-        print(f"  30001: Error Code                          = {regs[0]} (0=No Error)")
+        # Parse only essential registers
+        print(f"✅ Successfully read essential registers:\n")
 
-        odu_cycle = {0: "Standby (OFF)", 1: "Cooling", 2: "Heating"}
-        print(f"  30002: ODU Operating Cycle                 = {odu_cycle.get(regs[1], 'Unknown')} ({regs[1]})")
+        print(f"  30001: Error Code                          = {regs[0]} {'✅ OK' if regs[0] == 0 else '⚠️ ERROR'}")
 
-        print(f"  30003: Water Inlet Temperature             = {decode_temperature(regs[2]):6.1f}°C")
-        print(f"  30004: Water Outlet Temperature (Flow)     = {decode_temperature(regs[3]):6.1f}°C")
-        print(f"  30005: Backup Heater Outlet Temperature    = {decode_temperature(regs[4]):6.1f}°C")
-        print(f"  30006: DHW Tank Temperature                = {decode_temperature(regs[5]):6.1f}°C")
-        print(f"  30007: Solar Collector Temperature         = {decode_temperature(regs[6]):6.1f}°C")
-        print(f"  30008: Room Air Temperature (Circuit 1)    = {decode_temperature(regs[7]):6.1f}°C")
-        print(f"  30009: Current Flow Rate                   = {decode_flow_rate(regs[8]):6.1f} LPM")
-        print(f"  30010: Flow Temperature (Circuit 2)        = {decode_temperature(regs[9]):6.1f}°C")
-        print(f"  30011: Room Air Temperature (Circuit 2)    = {decode_temperature(regs[10]):6.1f}°C")
-        print(f"  30012: Energy State Input                  = {regs[11]}")
+        odu_cycle = {0: "OFF/Standby", 1: "Cooling", 2: "Heating"}
+        print(f"  30002: Operating Status                    = {odu_cycle.get(regs[1], 'Unknown')} ({regs[1]})")
+
+        print(f"  30003: Water Inlet Temp (Return)           = {decode_temperature(regs[2]):6.1f}°C")
+        print(f"  30004: Water Outlet Temp (Flow)            = {decode_temperature(regs[3]):6.1f}°C")
         print(f"  30013: Outdoor Air Temperature             = {decode_temperature(regs[12]):6.1f}°C")
-        print(f"  30014: Water Pressure                      = {decode_pressure(regs[13]):6.1f} bar")
 
-        # Read device info registers (39998-39999)
-        print("\n  Device Information:")
-        await asyncio.sleep(INTER_REQUEST_DELAY)
-        result_info = await read_with_retry(
-            client,
-            client.read_input_registers,
-            39997, 2,
-            description="device info 39998-39999",
-            slave=DEVICE_ID
-        )
-        if result_info:
-            device_group = result_info.registers[0]
-            device_info = result_info.registers[1]
-            device_types = {0: "Split", 3: "Monoblock", 4: "High Temp", 5: "Medium Temp", 6: "System Boiler"}
-            print(f"  39998: Device Group                        = 0x{device_group:04X}")
-            print(f"  39999: Device Type                         = {device_types.get(device_info, 'Unknown')} ({device_info})")
+        return regs
 
     except Exception as e:
         print(f"❌ Exception: {e}")
+        return None
 
 
 async def read_holding_registers(client):
-    """Read Holding Registers (0x04) - Settings (read/write, but we only read)."""
+    """Read Holding Registers (0x04) - Essential settings only."""
     print("\n" + "="*80)
-    print("HOLDING REGISTERS (0x04) - Settings (Read-Only in this test)")
+    print("HOLDING REGISTERS (0x04) - Essential Settings")
     print("="*80)
 
     try:
-        # Read first 10 registers (40001-40010) with retry
-        print("Reading holding registers 40001-40010...")
+        # Read only essential registers: 40001 (mode), 40003 (target temp)
+        print("Reading essential holding registers...")
         await asyncio.sleep(INTER_REQUEST_DELAY)
         result = await read_with_retry(
             client,
             client.read_holding_registers,
-            0, 10,
-            description="holding registers 40001-40010",
+            0, 4,  # Read 40001-40004 (mode, control method, target, room temp)
+            description="essential holding registers",
             slave=DEVICE_ID
         )
 
         if result is None:
             print(f"❌ Failed to read holding registers after {MAX_RETRIES} attempts")
-            return
-
-        print(f"✅ Successfully read {len(result.registers)} holding registers:\n")
+            return None
 
         regs = result.registers
 
-        # Parse each register according to documentation
+        print(f"✅ Successfully read essential registers:\n")
+
+        # Parse essential registers
         op_modes = {0: "Cooling", 3: "Auto", 4: "Heating"}
         print(f"  40001: Operating Mode                      = {op_modes.get(regs[0], 'Unknown')} ({regs[0]})")
 
-        control_methods = {
-            0: "Water Outlet Temp Control",
-            1: "Water Inlet Temp Control",
-            2: "Room Air Control"
-        }
-        print(f"  40002: Control Method (Circuit 1/2)        = {control_methods.get(regs[1], 'Unknown')} ({regs[1]})")
+        print(f"  40003: Target Flow Temperature             = {decode_temperature(regs[2]):6.1f}°C")
 
-        print(f"  40003: Target Temp (Heating/Cooling) C1    = {decode_temperature(regs[2]):6.1f}°C")
-        print(f"  40004: Room Air Temperature Circuit 1      = {decode_temperature(regs[3]):6.1f}°C")
-        print(f"  40005: Auto Mode Switch Value Circuit 1    = {regs[4]}K")
-        print(f"  40006: Target Temp (Heating/Cooling) C2    = {decode_temperature(regs[5]):6.1f}°C")
-        print(f"  40007: Room Air Temperature Circuit 2      = {decode_temperature(regs[6]):6.1f}°C")
-        print(f"  40008: Auto Mode Switch Value Circuit 2    = {regs[7]}K")
-        print(f"  40009: DHW Target Temperature              = {decode_temperature(regs[8]):6.1f}°C")
-        print(f"  40010: Energy State Input                  = {regs[9]}")
-
-        # Read power limitation register (40025)
-        await asyncio.sleep(INTER_REQUEST_DELAY)
-        result_power = await read_with_retry(
-            client,
-            client.read_holding_registers,
-            24, 1,
-            description="power limit 40025",
-            slave=DEVICE_ID
-        )
-        if result_power:
-            power_limit = result_power.registers[0] / 10.0
-            print(f"  40025: Power Limitation Value              = {power_limit:6.1f} kW")
+        return regs
 
     except Exception as e:
         print(f"❌ Exception: {e}")
+        return None
 
 
 async def main():
@@ -249,46 +203,26 @@ async def main():
     print("✅ Connected to gateway successfully\n")
 
     try:
-        # Read only essential registers (skip coils and discrete inputs)
-        await read_input_registers(client)
-        await read_holding_registers(client)
+        # Read only essential registers
+        input_regs = await read_input_registers(client)
+        holding_regs = await read_holding_registers(client)
 
+        # Display summary
         print("\n" + "="*80)
         print("SUMMARY - LG Therma V Status")
         print("="*80)
 
-        # Read current status for summary (with retry)
-        await asyncio.sleep(INTER_REQUEST_DELAY)
-        result_input = await read_with_retry(
-            client,
-            client.read_input_registers,
-            0, 14,
-            description="summary input registers",
-            slave=DEVICE_ID
-        )
-        await asyncio.sleep(INTER_REQUEST_DELAY)
-        result_holding = await read_with_retry(
-            client,
-            client.read_holding_registers,
-            0, 10,
-            description="summary holding registers",
-            slave=DEVICE_ID
-        )
-
-        if result_input and result_holding:
-            inp = result_input.registers
-            hold = result_holding.registers
-
+        if input_regs and holding_regs:
             print(f"\n  System Status:")
             odu_cycle = {0: "OFF/Standby", 1: "Cooling", 2: "HEATING"}
-            print(f"    Heat Pump:          {odu_cycle.get(inp[1], 'Unknown')}")
-            print(f"    Outdoor Temp:       {decode_temperature(inp[12]):6.1f}°C")
-            print(f"    Flow Temp (Actual): {decode_temperature(inp[3]):6.1f}°C")
-            print(f"    Flow Temp (Target): {decode_temperature(hold[2]):6.1f}°C")
-            print(f"    Room Temp:          {decode_temperature(inp[7]):6.1f}°C")
-            print(f"    Flow Rate:          {decode_flow_rate(inp[8]):6.1f} LPM")
-            print(f"    Water Pressure:     {decode_pressure(inp[13]):6.1f} bar")
-            print(f"    Error Code:         {inp[0]} {'✅ OK' if inp[0] == 0 else '⚠️ ERROR'}")
+            print(f"    Heat Pump:          {odu_cycle.get(input_regs[1], 'Unknown')}")
+            print(f"    Outdoor Temp:       {decode_temperature(input_regs[12]):6.1f}°C")
+            print(f"    Flow Temp (Actual): {decode_temperature(input_regs[3]):6.1f}°C")
+            print(f"    Flow Temp (Target): {decode_temperature(holding_regs[2]):6.1f}°C")
+            print(f"    Return Temp:        {decode_temperature(input_regs[2]):6.1f}°C")
+            print(f"    Error Code:         {input_regs[0]} {'✅ OK' if input_regs[0] == 0 else '⚠️ ERROR'}")
+        else:
+            print("\n  ⚠️  Could not read complete status")
 
         print("\n" + "="*80 + "\n")
 
