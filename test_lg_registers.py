@@ -10,6 +10,7 @@ Connection:
 """
 
 import asyncio
+import time
 from pymodbus.client import AsyncModbusTcpClient
 from pymodbus.exceptions import ModbusException
 
@@ -18,6 +19,11 @@ from pymodbus.exceptions import ModbusException
 GATEWAY_IP = "192.168.2.10"
 MODBUS_PORT = 8899
 DEVICE_ID = 5  # LG Therma V
+
+# Retry configuration for shared gateway
+MAX_RETRIES = 3
+RETRY_DELAY = 2.0  # seconds between retries
+INTER_REQUEST_DELAY = 0.5  # delay between consecutive requests
 
 
 def decode_temperature(value):
@@ -38,6 +44,50 @@ def decode_pressure(value):
     return value / 10.0
 
 
+async def read_with_retry(client, func, *args, description="register", **kwargs):
+    """
+    Read Modbus registers with retry logic for shared gateway.
+
+    Args:
+        client: AsyncModbusTcpClient instance
+        func: Read function (read_input_registers, read_holding_registers, etc.)
+        *args: Arguments to pass to func
+        description: Description for logging
+        **kwargs: Keyword arguments to pass to func
+
+    Returns:
+        Modbus response or None on failure
+    """
+    for attempt in range(MAX_RETRIES):
+        try:
+            # Add delay between requests to reduce gateway congestion
+            if attempt > 0:
+                await asyncio.sleep(RETRY_DELAY * attempt)  # Exponential backoff
+
+            result = await func(*args, **kwargs)
+
+            if result.isError():
+                print(f"  ⚠️  Attempt {attempt + 1}/{MAX_RETRIES}: Error reading {description}: {result}")
+                if attempt < MAX_RETRIES - 1:
+                    continue
+                return None
+
+            return result
+
+        except asyncio.TimeoutError:
+            print(f"  ⚠️  Attempt {attempt + 1}/{MAX_RETRIES}: Timeout reading {description}")
+            if attempt < MAX_RETRIES - 1:
+                continue
+            return None
+        except Exception as e:
+            print(f"  ⚠️  Attempt {attempt + 1}/{MAX_RETRIES}: Exception reading {description}: {e}")
+            if attempt < MAX_RETRIES - 1:
+                continue
+            return None
+
+    return None
+
+
 async def read_input_registers(client):
     """Read Input Registers (0x03) - Sensor readings."""
     print("\n" + "="*80)
@@ -45,11 +95,19 @@ async def read_input_registers(client):
     print("="*80)
 
     try:
-        # Read first 14 registers (30001-30014)
-        result = await client.read_input_registers(0, 14, slave=DEVICE_ID)
+        # Read first 14 registers (30001-30014) with retry
+        print("Reading input registers 30001-30014...")
+        await asyncio.sleep(INTER_REQUEST_DELAY)
+        result = await read_with_retry(
+            client,
+            client.read_input_registers,
+            0, 14,
+            description="input registers 30001-30014",
+            slave=DEVICE_ID
+        )
 
-        if result.isError():
-            print(f"❌ Error reading input registers: {result}")
+        if result is None:
+            print(f"❌ Failed to read input registers after {MAX_RETRIES} attempts")
             return
 
         print(f"✅ Successfully read {len(result.registers)} input registers:\n")
@@ -77,8 +135,15 @@ async def read_input_registers(client):
 
         # Read device info registers (39998-39999)
         print("\n  Device Information:")
-        result_info = await client.read_input_registers(39997, 2, slave=DEVICE_ID)
-        if not result_info.isError():
+        await asyncio.sleep(INTER_REQUEST_DELAY)
+        result_info = await read_with_retry(
+            client,
+            client.read_input_registers,
+            39997, 2,
+            description="device info 39998-39999",
+            slave=DEVICE_ID
+        )
+        if result_info:
             device_group = result_info.registers[0]
             device_info = result_info.registers[1]
             device_types = {0: "Split", 3: "Monoblock", 4: "High Temp", 5: "Medium Temp", 6: "System Boiler"}
@@ -96,11 +161,19 @@ async def read_holding_registers(client):
     print("="*80)
 
     try:
-        # Read first 10 registers (40001-40010)
-        result = await client.read_holding_registers(0, 10, slave=DEVICE_ID)
+        # Read first 10 registers (40001-40010) with retry
+        print("Reading holding registers 40001-40010...")
+        await asyncio.sleep(INTER_REQUEST_DELAY)
+        result = await read_with_retry(
+            client,
+            client.read_holding_registers,
+            0, 10,
+            description="holding registers 40001-40010",
+            slave=DEVICE_ID
+        )
 
-        if result.isError():
-            print(f"❌ Error reading holding registers: {result}")
+        if result is None:
+            print(f"❌ Failed to read holding registers after {MAX_RETRIES} attempts")
             return
 
         print(f"✅ Successfully read {len(result.registers)} holding registers:\n")
@@ -128,8 +201,15 @@ async def read_holding_registers(client):
         print(f"  40010: Energy State Input                  = {regs[9]}")
 
         # Read power limitation register (40025)
-        result_power = await client.read_holding_registers(24, 1, slave=DEVICE_ID)
-        if not result_power.isError():
+        await asyncio.sleep(INTER_REQUEST_DELAY)
+        result_power = await read_with_retry(
+            client,
+            client.read_holding_registers,
+            24, 1,
+            description="power limit 40025",
+            slave=DEVICE_ID
+        )
+        if result_power:
             power_limit = result_power.registers[0] / 10.0
             print(f"  40025: Power Limitation Value              = {power_limit:6.1f} kW")
 
@@ -177,11 +257,25 @@ async def main():
         print("SUMMARY - LG Therma V Status")
         print("="*80)
 
-        # Read current status for summary
-        result_input = await client.read_input_registers(0, 14, slave=DEVICE_ID)
-        result_holding = await client.read_holding_registers(0, 10, slave=DEVICE_ID)
+        # Read current status for summary (with retry)
+        await asyncio.sleep(INTER_REQUEST_DELAY)
+        result_input = await read_with_retry(
+            client,
+            client.read_input_registers,
+            0, 14,
+            description="summary input registers",
+            slave=DEVICE_ID
+        )
+        await asyncio.sleep(INTER_REQUEST_DELAY)
+        result_holding = await read_with_retry(
+            client,
+            client.read_holding_registers,
+            0, 10,
+            description="summary holding registers",
+            slave=DEVICE_ID
+        )
 
-        if not result_input.isError() and not result_holding.isError():
+        if result_input and result_holding:
             inp = result_input.registers
             hold = result_holding.registers
 
