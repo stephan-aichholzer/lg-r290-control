@@ -46,7 +46,7 @@ async def read_input_registers(client):
 
     try:
         # Read first 14 registers (30001-30014)
-        result = await client.read_input_registers(address=0, count=14, device_id=DEVICE_ID)
+        result = await client.read_input_registers(0, 14, slave=DEVICE_ID)
 
         if result.isError():
             print(f"❌ Error reading input registers: {result}")
@@ -77,7 +77,7 @@ async def read_input_registers(client):
 
         # Read device info registers (39998-39999)
         print("\n  Device Information:")
-        result_info = await client.read_input_registers(address=39997, count=2, device_id=DEVICE_ID)
+        result_info = await client.read_input_registers(39997, 2, slave=DEVICE_ID)
         if not result_info.isError():
             device_group = result_info.registers[0]
             device_info = result_info.registers[1]
@@ -97,7 +97,7 @@ async def read_holding_registers(client):
 
     try:
         # Read first 10 registers (40001-40010)
-        result = await client.read_holding_registers(address=0, count=10, device_id=DEVICE_ID)
+        result = await client.read_holding_registers(0, 10, slave=DEVICE_ID)
 
         if result.isError():
             print(f"❌ Error reading holding registers: {result}")
@@ -128,7 +128,7 @@ async def read_holding_registers(client):
         print(f"  40010: Energy State Input                  = {regs[9]}")
 
         # Read power limitation register (40025)
-        result_power = await client.read_holding_registers(address=24, count=1, device_id=DEVICE_ID)
+        result_power = await client.read_holding_registers(24, 1, slave=DEVICE_ID)
         if not result_power.isError():
             power_limit = result_power.registers[0] / 10.0
             print(f"  40025: Power Limitation Value              = {power_limit:6.1f} kW")
@@ -178,8 +178,8 @@ async def main():
         print("="*80)
 
         # Read current status for summary
-        result_input = await client.read_input_registers(address=0, count=14, device_id=DEVICE_ID)
-        result_holding = await client.read_holding_registers(address=0, count=10, device_id=DEVICE_ID)
+        result_input = await client.read_input_registers(0, 14, slave=DEVICE_ID)
+        result_holding = await client.read_holding_registers(0, 10, slave=DEVICE_ID)
 
         if not result_input.isError() and not result_holding.isError():
             inp = result_input.registers
@@ -205,7 +205,8 @@ async def main():
 
     finally:
         # Always disconnect
-        client.close()
+        if client and client.connected:
+            await client.close()
         print("Disconnected from gateway")
 
 
