@@ -6,7 +6,9 @@ Provides REST API for monitoring and controlling the heat pump via Modbus TCP.
 
 import os
 import asyncio
+import json
 import logging
+from pathlib import Path
 from typing import Optional
 from contextlib import asynccontextmanager
 
@@ -14,7 +16,11 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
-from modbus_client import HeatPumpModbusClient
+# Import shared Modbus library (replaces modbus_client.py)
+import sys
+sys.path.insert(0, '/app')
+from lg_r290_modbus import connect_gateway, set_power, set_target_temperature
+
 from adaptive_controller import AdaptiveController
 from scheduler import Scheduler
 
@@ -25,8 +31,11 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Global Modbus client instance
-modbus_client: Optional[HeatPumpModbusClient] = None
+# Status file path (written by monitor_and_keep_alive.py)
+STATUS_FILE = Path("/app/status.json")
+
+# Global Modbus client for write operations
+modbus_client = None
 
 # Global adaptive controller instance
 adaptive_controller: Optional[AdaptiveController] = None
@@ -44,21 +53,20 @@ async def lifespan(app: FastAPI):
     global modbus_client, adaptive_controller, scheduler
 
     # Startup
-    host = os.getenv("MODBUS_HOST", "heatpump-mock")
-    port = int(os.getenv("MODBUS_PORT", "502"))
-    unit_id = int(os.getenv("MODBUS_UNIT_ID", "1"))
-    poll_interval = int(os.getenv("POLL_INTERVAL", "5"))
     thermostat_api_url = os.getenv("THERMOSTAT_API_URL", "http://192.168.2.11:8001")
 
-    logger.info(f"Connecting to Modbus TCP at {host}:{port}, Unit ID: {unit_id}")
-    modbus_client = HeatPumpModbusClient(host, port, unit_id, poll_interval)
+    # Connect Modbus client for write operations (read is from status.json)
+    logger.info("Connecting to Modbus gateway for control operations...")
+    modbus_client = await connect_gateway()
 
-    await modbus_client.connect()
-    modbus_client.start_polling()
+    if not modbus_client:
+        logger.error("Failed to connect to Modbus gateway - service may not function correctly")
+    else:
+        logger.info("✅ Modbus gateway connected")
 
     # Initialize adaptive controller
     logger.info("Initializing adaptive controller (AI Mode)")
-    adaptive_controller = AdaptiveController(modbus_client, thermostat_api_url)
+    adaptive_controller = AdaptiveController(STATUS_FILE, thermostat_api_url)
     adaptive_controller.start()
 
     # Initialize scheduler (if enabled)
@@ -82,8 +90,7 @@ async def lifespan(app: FastAPI):
         logger.info("Adaptive controller stopped")
 
     if modbus_client:
-        modbus_client.stop_polling()
-        await modbus_client.disconnect()
+        modbus_client.close()
         logger.info("Modbus client disconnected")
 
 
@@ -225,17 +232,35 @@ async def root():
     "/health",
     summary="Health Check",
     description="""
-    Check if the API service is healthy and Modbus connection is active.
+    Check if the API service is healthy and status data is available.
 
-    Returns HTTP 200 if healthy, HTTP 503 if Modbus connection is unavailable.
+    Returns HTTP 200 if healthy, HTTP 503 if status file is unavailable or stale.
     """,
     tags=["System"]
 )
 async def health_check():
-    """Health check endpoint - verifies Modbus connectivity."""
-    if not modbus_client or not modbus_client.is_connected:
-        raise HTTPException(status_code=503, detail="Modbus connection not available")
-    return {"status": "healthy", "modbus_connected": True}
+    """Health check endpoint - verifies status file availability."""
+    if not STATUS_FILE.exists():
+        raise HTTPException(status_code=503, detail="Status file not available")
+
+    # Check if status is recent (within last 30 seconds)
+    try:
+        with open(STATUS_FILE) as f:
+            data = json.load(f)
+
+        from datetime import datetime, timedelta
+        timestamp = datetime.fromisoformat(data['timestamp'])
+        age = (datetime.now() - timestamp).total_seconds()
+
+        if age > 30:
+            raise HTTPException(
+                status_code=503,
+                detail=f"Status data is stale ({age:.0f}s old)"
+            )
+
+        return {"status": "healthy", "status_age_seconds": age}
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Status file error: {e}")
 
 
 @app.get(
@@ -246,24 +271,50 @@ async def health_check():
     Get complete heat pump status including:
     - Power state and operating mode
     - Temperature readings (flow, return, outdoor)
-    - Water flow rate and pressure
-    - Compressor and pump status
+    - Water flow rate and pressure (defaults if not available)
+    - Compressor and pump status (derived from operating mode)
     - Error codes
 
-    Data is cached and updated every 5 seconds via background polling.
+    Data is cached and updated every 10 seconds by monitor daemon.
     """,
     tags=["Heat Pump"]
 )
 async def get_status():
-    """Get current heat pump status from cached Modbus data."""
-    if not modbus_client:
-        raise HTTPException(status_code=503, detail="Modbus client not initialized")
+    """Get current heat pump status from status.json file."""
+    if not STATUS_FILE.exists():
+        raise HTTPException(status_code=503, detail="Status file not available")
 
     try:
-        status = modbus_client.get_cached_status()
+        with open(STATUS_FILE) as f:
+            data = json.load(f)
+
+        # Map operating modes
+        mode_map = {
+            0: "Standby",
+            1: "Cooling",
+            2: "Heating",
+            3: "Auto"
+        }
+
+        # Map status.json format to API format
+        status = {
+            "is_on": data['power_state'] == "ON",
+            "water_pump_running": data['operating_mode'] in [1, 2],  # Running in Cooling/Heating
+            "compressor_running": data['operating_mode'] in [1, 2],  # Running in Cooling/Heating
+            "operating_mode": mode_map.get(data['operating_mode'], "Unknown"),
+            "target_temperature": data['target_temp'],
+            "flow_temperature": data['flow_temp'],
+            "return_temperature": data['return_temp'],
+            "flow_rate": 0.0,  # Not available in current register set
+            "outdoor_temperature": data['outdoor_temp'],
+            "water_pressure": 0.0,  # Not available in current register set
+            "error_code": data['error_code'],
+            "has_error": data['error_code'] != 0
+        }
+
         return status
     except Exception as e:
-        logger.error(f"Error getting status: {e}")
+        logger.error(f"Error reading status file: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -280,13 +331,13 @@ async def get_status():
     """,
     tags=["Heat Pump"]
 )
-async def set_power(control: PowerControl):
+async def set_power_endpoint(control: PowerControl):
     """Turn heat pump on or off via Modbus TCP."""
     if not modbus_client:
-        raise HTTPException(status_code=503, detail="Modbus client not initialized")
+        raise HTTPException(status_code=503, detail="Modbus client not connected")
 
     try:
-        success = await modbus_client.set_power(control.power_on)
+        success = await set_power(modbus_client, control.power_on)
         if success:
             logger.info(f"Heat pump power set to {'ON' if control.power_on else 'OFF'} via API")
             return {"status": "success", "power_on": control.power_on}
@@ -316,17 +367,17 @@ async def set_power(control: PowerControl):
     """,
     tags=["Heat Pump"]
 )
-async def set_temperature_setpoint(setpoint: TemperatureSetpoint):
+async def set_temperature_setpoint_endpoint(setpoint: TemperatureSetpoint):
     """Set target flow temperature setpoint via Modbus TCP."""
     if not modbus_client:
-        raise HTTPException(status_code=503, detail="Modbus client not initialized")
+        raise HTTPException(status_code=503, detail="Modbus client not connected")
 
     # Validate temperature range
     if not 20.0 <= setpoint.temperature <= 60.0:
         raise HTTPException(status_code=400, detail="Temperature must be between 20.0 and 60.0°C")
 
     try:
-        success = await modbus_client.set_target_temperature(setpoint.temperature)
+        success = await set_target_temperature(modbus_client, setpoint.temperature)
         if success:
             logger.info(f"Flow temperature setpoint changed to {setpoint.temperature}°C")
             return {"status": "success", "target_temperature": setpoint.temperature}
@@ -339,27 +390,25 @@ async def set_temperature_setpoint(setpoint: TemperatureSetpoint):
 
 @app.get(
     "/registers/raw",
-    summary="Get Raw Modbus Registers",
+    summary="Get Raw Status Data",
     description="""
-    Get raw cached Modbus register values for debugging purposes.
-
-    Returns unprocessed register data including coils, discrete inputs,
-    input registers, and holding registers.
+    Get raw status data from status.json file for debugging purposes.
 
     **Use Case**: Troubleshooting, hardware verification, development.
     """,
     tags=["Debug"]
 )
 async def get_raw_registers():
-    """Get raw register values (for debugging)."""
-    if not modbus_client:
-        raise HTTPException(status_code=503, detail="Modbus client not initialized")
+    """Get raw status data from status.json (for debugging)."""
+    if not STATUS_FILE.exists():
+        raise HTTPException(status_code=503, detail="Status file not available")
 
     try:
-        raw_data = modbus_client.get_raw_registers()
-        return raw_data
+        with open(STATUS_FILE) as f:
+            data = json.load(f)
+        return data
     except Exception as e:
-        logger.error(f"Error getting raw registers: {e}")
+        logger.error(f"Error reading status file: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

@@ -3,15 +3,23 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # Install dependencies
-COPY requirements.txt .
+COPY service/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Copy shared Modbus library from project root
+COPY lg_r290_modbus.py /app/
+COPY monitor_and_keep_alive.py /app/
+
 # Copy application files
-COPY main.py modbus_client.py heating_curve.py adaptive_controller.py scheduler.py /app/
-COPY heating_curve_config.json schedule.json /app/
+COPY service/main.py service/heating_curve.py service/adaptive_controller.py service/scheduler.py /app/
+COPY service/heating_curve_config.json service/schedule.json /app/
+COPY service/start.sh /app/
+
+# Make start script executable
+RUN chmod +x /app/start.sh
 
 # Expose FastAPI port
 EXPOSE 8000
 
-# Run the service
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Run via startup script (starts monitor + FastAPI)
+CMD ["/app/start.sh"]

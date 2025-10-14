@@ -32,6 +32,12 @@ GATEWAY_IP = "192.168.2.10"
 MODBUS_PORT = 8899
 DEVICE_ID = 7  # LG Therma V
 
+# Energy State Configuration
+# Change this value to test different behaviors:
+#   0 = Not used (default - test if polling alone is sufficient)
+#   5 = ON-Command Step2 (proven to work but may affect compressor modulation)
+ENERGY_STATE_VALUE = 0  # ⭐ CHANGE THIS TO 0 or 5 to test different behaviors
+
 # Retry configuration for shared gateway
 MAX_RETRIES = 3
 RETRY_DELAY = 2.0  # seconds between retries
@@ -241,12 +247,12 @@ async def cmd_set_power(power_on: bool):
         print(f"\n{'Turning ON' if power_on else 'Turning OFF'} heat pump...")
 
         if power_on:
-            # STEP 1: Set Energy State to ON-Command Step2 (5) - Required for external control!
+            # STEP 1: Set Energy State (configurable)
             await asyncio.sleep(INTER_REQUEST_DELAY)
             energy_result = await modbus_operation_with_retry(
                 client,
                 client.write_register,
-                HOLDING_ENERGY_STATE, 5,  # 5 = ON-Command Step2 (++ power consumption)
+                HOLDING_ENERGY_STATE, ENERGY_STATE_VALUE,
                 operation_name="write register (energy state)",
                 slave=DEVICE_ID
             )
@@ -255,7 +261,9 @@ async def cmd_set_power(power_on: bool):
                 print(f"❌ Failed to set energy state after {MAX_RETRIES} attempts")
                 sys.exit(1)
 
-            print(f"✅ Energy state set to ON-Command Step2 (5)")
+            energy_states = {0: "Not used", 5: "ON-Command Step2"}
+            energy_desc = energy_states.get(ENERGY_STATE_VALUE, f"Value {ENERGY_STATE_VALUE}")
+            print(f"✅ Energy state set to {energy_desc} ({ENERGY_STATE_VALUE})")
 
             # STEP 2: Set Control Method to Water outlet (0)
             await asyncio.sleep(INTER_REQUEST_DELAY)
@@ -368,12 +376,12 @@ async def cmd_set_temp_and_power(temp: float, power_on: bool):
         print(f"\nSetting temperature to {temp}°C and turning {'ON' if power_on else 'OFF'}...")
 
         if power_on:
-            # STEP 1: Set Energy State to ON-Command Step2 (5) - Required for external control!
+            # STEP 1: Set Energy State (configurable)
             await asyncio.sleep(INTER_REQUEST_DELAY)
             energy_result = await modbus_operation_with_retry(
                 client,
                 client.write_register,
-                HOLDING_ENERGY_STATE, 5,  # 5 = ON-Command Step2 (++ power consumption)
+                HOLDING_ENERGY_STATE, ENERGY_STATE_VALUE,
                 operation_name="write register (energy state)",
                 slave=DEVICE_ID
             )
@@ -382,7 +390,9 @@ async def cmd_set_temp_and_power(temp: float, power_on: bool):
                 print(f"❌ Failed to set energy state after {MAX_RETRIES} attempts")
                 sys.exit(1)
 
-            print(f"✅ Energy state set to ON-Command Step2 (5)")
+            energy_states = {0: "Not used", 5: "ON-Command Step2"}
+            energy_desc = energy_states.get(ENERGY_STATE_VALUE, f"Value {ENERGY_STATE_VALUE}")
+            print(f"✅ Energy state set to {energy_desc} ({ENERGY_STATE_VALUE})")
 
             # STEP 2: Set Control Method to Water outlet (0)
             await asyncio.sleep(INTER_REQUEST_DELAY)
