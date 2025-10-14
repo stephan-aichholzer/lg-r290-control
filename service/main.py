@@ -340,6 +340,18 @@ async def set_power_endpoint(control: PowerControl):
         success = await set_power(modbus_client, control.power_on)
         if success:
             logger.info(f"Heat pump power set to {'ON' if control.power_on else 'OFF'} via API")
+
+            # Sync AI Mode with power state
+            if adaptive_controller:
+                if control.power_on:
+                    # Turning ON → Enable AI Mode
+                    adaptive_controller.enabled = True
+                    logger.info("AI Mode automatically enabled (heat pump turned ON)")
+                else:
+                    # Turning OFF → Disable AI Mode
+                    adaptive_controller.enabled = False
+                    logger.info("AI Mode automatically disabled (heat pump turned OFF)")
+
             return {"status": "success", "power_on": control.power_on}
         else:
             raise HTTPException(status_code=500, detail="Failed to set power state")
