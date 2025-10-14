@@ -153,7 +153,7 @@ async def sync_datastore_to_json(context, datastore: JSONBackedDataStore, interv
         await asyncio.sleep(interval)
         try:
             # Read current values from Modbus datastore and update JSON
-            slave = context[1]  # Get slave context for unit ID 1
+            slave = context[7]  # Get slave context for unit ID 7
 
             # Sync coils
             for reg_id, reg_data in datastore.data['coils'].items():
@@ -197,8 +197,8 @@ async def run_server(host: str = "0.0.0.0", port: int = 502):
         ir=input_block      # Input Registers
     )
 
-    # Create server context (unit ID = 1)
-    context = ModbusServerContext(slaves={1: slave_context}, single=False)
+    # Create server context (unit ID = 7, matching real LG Therma V)
+    context = ModbusServerContext(slaves={7: slave_context}, single=False)
 
     # Device identification
     identity = ModbusDeviceIdentification()

@@ -134,6 +134,14 @@
       "writable": true,
       "unit": "0.1°C",
       "comment": "500 = 50.0°C"
+    },
+    "40010": {
+      "address": 9,
+      "description": "Energy State Input (CRITICAL for external control)",
+      "value": 0,
+      "writable": true,
+      "unit": "enum",
+      "comment": "0=Not used, 5=ON-Command Step2 (REQUIRED for external control)"
     }
   }
 }

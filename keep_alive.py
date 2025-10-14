@@ -37,6 +37,8 @@ INPUT_RETURN_TEMP = 2        # 30003: Water Inlet Temperature (return)
 INPUT_FLOW_TEMP = 3          # 30004: Water Outlet Temperature (flow)
 INPUT_OUTDOOR_TEMP = 12      # 30013: Outdoor Air Temperature
 HOLDING_OP_MODE = 0          # 40001: Operating Mode
+HOLDING_CONTROL_METHOD = 1   # 40002: Control Method
+HOLDING_TARGET_TEMP = 2      # 40003: Target Temperature
 HOLDING_ENERGY_STATE = 9     # 40010: Energy State Input
 
 # Operating modes for display
@@ -193,18 +195,18 @@ async def read_status(client):
         if input_result is None:
             return None
 
-        # Read holding registers (operating mode)
+        # Read holding registers (operating mode, control method, target temp)
         holding_result = await modbus_read_with_retry(
             client,
             client.read_holding_registers,
             HOLDING_OP_MODE,
-            1  # Just read operating mode
+            3  # Read 40001-40003 (op mode, control method, target temp)
         )
 
         if holding_result is None:
             return None
 
-        # Read energy state separately
+        # Read energy state separately (can't read 40001-40010 in one go efficiently)
         energy_result = await modbus_read_with_retry(
             client,
             client.read_holding_registers,
@@ -222,14 +224,17 @@ async def read_status(client):
         outdoor_temp = regs[INPUT_OUTDOOR_TEMP] / 10.0
         operating_mode_odu = regs[INPUT_OPERATING_MODE]
 
-        # Parse operating mode and energy state
-        operating_mode = holding_result.registers[0]
+        # Parse holding registers
+        holding_regs = holding_result.registers
+        operating_mode = holding_regs[HOLDING_OP_MODE]
+        target_temp = holding_regs[HOLDING_TARGET_TEMP] / 10.0
         energy_state = energy_result.registers[0]
 
         return {
             'flow_temp': flow_temp,
             'return_temp': return_temp,
             'outdoor_temp': outdoor_temp,
+            'target_temp': target_temp,
             'operating_mode': operating_mode_odu,  # Use ODU cycle for display
             'energy_state': energy_state
         }
@@ -321,6 +326,7 @@ async def keep_alive():
 
             print(f"[{timestamp}] [{elapsed:4d}s] "
                   f"Mode: {mode_str:8s} | "
+                  f"Target: {status['target_temp']:4.1f}°C | "
                   f"Flow: {status['flow_temp']:5.1f}°C | "
                   f"Return: {status['return_temp']:5.1f}°C | "
                   f"ODU: {status['outdoor_temp']:5.1f}°C | "
