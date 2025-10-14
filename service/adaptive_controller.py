@@ -112,6 +112,11 @@ class AdaptiveController:
         4. Adjust heat pump ONLY if change >= 1°C threshold
         """
         try:
+            # Double-check AI Mode is still enabled (may have been disabled during cycle)
+            if not self.enabled:
+                logger.debug("AI Mode disabled mid-cycle - skipping adjustment")
+                return
+
             # Get current temperatures
             outdoor_temp = await self._get_outdoor_temperature()
             target_room_temp = await self._get_target_room_temperature()
@@ -151,6 +156,11 @@ class AdaptiveController:
             # Check if heat pump should be turned off (or stay off)
             if optimal_flow_temp is None:
                 if current_power:
+                    # Check again if AI Mode is still enabled before turning OFF
+                    if not self.enabled:
+                        logger.debug("AI Mode disabled - skipping power OFF")
+                        return
+
                     logger.info(
                         f"AI Mode: Outdoor temp {outdoor_temp:.1f}°C - Turning heat pump OFF"
                     )
@@ -162,6 +172,11 @@ class AdaptiveController:
             temp_diff = abs(current_setpoint - optimal_flow_temp)
 
             if temp_diff >= self.adjustment_threshold:
+                # Check again if AI Mode is still enabled before making changes
+                if not self.enabled:
+                    logger.debug("AI Mode disabled - skipping temperature adjustment")
+                    return
+
                 # Ensure Modbus connection
                 if not await self._ensure_modbus_connection():
                     logger.error("AI Mode: Cannot adjust - Modbus not connected")
@@ -169,6 +184,11 @@ class AdaptiveController:
 
                 # Ensure heat pump is on
                 if not current_power:
+                    # Final check before turning ON
+                    if not self.enabled:
+                        logger.debug("AI Mode disabled - skipping power ON")
+                        return
+
                     logger.info("AI Mode: Turning heat pump ON")
                     await set_power(self._modbus_client, True)
                     await asyncio.sleep(2)  # Wait for power on
