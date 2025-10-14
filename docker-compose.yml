@@ -1,19 +1,6 @@
 version: '3.8'
 
 services:
-  heatpump-mock:
-    build:
-      context: ./mock
-      dockerfile: Dockerfile
-    container_name: lg_r290_mock
-    ports:
-      - "5020:502"
-    volumes:
-      - ./mock/registers.json:/app/registers.json
-    networks:
-      - heatpump-net
-    restart: unless-stopped
-
   heatpump-service:
     build:
       context: .
