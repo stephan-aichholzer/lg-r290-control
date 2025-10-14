@@ -57,8 +57,37 @@ else
     echo ""
 fi
 
-# Start FastAPI service in foreground
+# Start FastAPI service in background
 echo "=========================================="
 echo "Starting FastAPI service..."
 echo "=========================================="
-exec uvicorn main:app --host 0.0.0.0 --port 8000
+uvicorn main:app --host 0.0.0.0 --port 8000 &
+UVICORN_PID=$!
+echo "✅ FastAPI started (PID: $UVICORN_PID)"
+echo ""
+
+# Monitor loop - exit container if monitor daemon dies
+echo "=========================================="
+echo "Entering supervision mode"
+echo "Monitoring status.json freshness every 30s"
+echo "Container will exit if file becomes stale (>60s)"
+echo "=========================================="
+echo ""
+
+while true; do
+    sleep 30
+
+    # Check if status.json exists and is fresh
+    if [ -f /app/status.json ]; then
+        FILE_AGE=$(( $(date +%s) - $(stat -c %Y /app/status.json) ))
+
+        if [ $FILE_AGE -gt 60 ]; then
+            echo "❌ CRITICAL: status.json is stale (${FILE_AGE}s old)"
+            echo "❌ Monitor daemon has crashed - exiting container for restart"
+            exit 1
+        fi
+    else
+        echo "❌ CRITICAL: status.json missing - exiting container for restart"
+        exit 1
+    fi
+done
