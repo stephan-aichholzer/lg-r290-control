@@ -337,8 +337,10 @@ async def set_power_endpoint(control: PowerControl):
         raise HTTPException(status_code=503, detail="Modbus client not connected")
 
     try:
-        success = await set_power(modbus_client, control.power_on)
-        if success:
+        # READ-ONLY MODE: Modbus write disabled
+        # success = await set_power(modbus_client, control.power_on)
+        success = False  # Disabled
+        if False and success:
             logger.info(f"Heat pump power set to {'ON' if control.power_on else 'OFF'} via API")
 
             # Sync AI Mode with power state
@@ -389,8 +391,10 @@ async def set_temperature_setpoint_endpoint(setpoint: TemperatureSetpoint):
         raise HTTPException(status_code=400, detail="Temperature must be between 20.0 and 60.0°C")
 
     try:
-        success = await set_target_temperature(modbus_client, setpoint.temperature)
-        if success:
+        # READ-ONLY MODE: Modbus write disabled
+        # success = await set_target_temperature(modbus_client, setpoint.temperature)
+        success = False  # Disabled
+        if False and success:
             logger.info(f"Flow temperature setpoint changed to {setpoint.temperature}°C")
             return {"status": "success", "target_temperature": setpoint.temperature}
         else:

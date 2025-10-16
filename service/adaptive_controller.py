@@ -165,7 +165,9 @@ class AdaptiveController:
                         f"AI Mode: Outdoor temp {outdoor_temp:.1f}°C - Turning heat pump OFF"
                     )
                     if await self._ensure_modbus_connection():
-                        await set_power(self._modbus_client, False)
+                        # READ-ONLY MODE: Modbus write disabled
+                        # await set_power(self._modbus_client, False)
+                        pass  # Disabled
                 return
 
             # Check if adjustment is needed (threshold = 1°C)
@@ -190,11 +192,15 @@ class AdaptiveController:
                         return
 
                     logger.info("AI Mode: Turning heat pump ON")
-                    await set_power(self._modbus_client, True)
+                    # READ-ONLY MODE: Modbus write disabled
+                    # await set_power(self._modbus_client, True)
+                    pass  # Disabled
                     await asyncio.sleep(2)  # Wait for power on
 
                 # Adjust setpoint (ONLY when change >= 1°C)
-                success = await set_target_temperature(self._modbus_client, optimal_flow_temp)
+                # READ-ONLY MODE: Modbus write disabled
+                # success = await set_target_temperature(self._modbus_client, optimal_flow_temp)
+                success = False  # Disabled
 
                 if success:
                     logger.info(
