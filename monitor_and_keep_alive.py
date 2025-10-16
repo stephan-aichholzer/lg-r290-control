@@ -30,7 +30,7 @@ from lg_r290_modbus import connect_gateway, read_all_registers
 # ============================================================================
 
 # Polling interval (seconds) - maintains external control
-POLL_INTERVAL = 10
+POLL_INTERVAL = 30
 
 # Status cache file location
 STATUS_FILE = Path("/app/status.json") if Path("/app").exists() else Path("status.json")
