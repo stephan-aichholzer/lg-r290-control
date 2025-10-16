@@ -20,7 +20,8 @@ const elements = {
     tempSliderValue: document.getElementById('temp-slider-value'),
     powerSwitch: document.getElementById('power-switch'),
     aiModeSwitch: document.getElementById('ai-mode-switch'),
-    aiStatusText: document.getElementById('ai-status-text')
+    aiStatusText: document.getElementById('ai-status-text'),
+    heatpumpLogo: document.getElementById('heatpump-logo')
 };
 
 /**
@@ -146,6 +147,13 @@ function updateUI(data) {
         elements.compressorDot.classList.add('on');
     } else if (!data.compressor_running && elements.compressorDot.classList.contains('on')) {
         elements.compressorDot.classList.remove('on');
+    }
+
+    // Rotate heat pump logo when compressor is running
+    if (data.compressor_running && !elements.heatpumpLogo.classList.contains('running')) {
+        elements.heatpumpLogo.classList.add('running');
+    } else if (!data.compressor_running && elements.heatpumpLogo.classList.contains('running')) {
+        elements.heatpumpLogo.classList.remove('running');
     }
 
     // Update slider to reflect actual target temperature from device
