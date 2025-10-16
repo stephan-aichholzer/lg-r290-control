@@ -17,6 +17,13 @@ from typing import Optional, Dict, Any
 from pymodbus.client import AsyncModbusTcpClient
 from pymodbus.exceptions import ModbusException
 
+# Suppress verbose PyModbus internal error logging
+# Only CRITICAL errors (library bugs) will be logged
+# Application-level errors are handled by our retry logic
+logging.getLogger('pymodbus').setLevel(logging.CRITICAL)
+logging.getLogger('pymodbus.client').setLevel(logging.CRITICAL)
+logging.getLogger('pymodbus.protocol').setLevel(logging.CRITICAL)
+
 logger = logging.getLogger(__name__)
 
 # ============================================================================
@@ -33,10 +40,11 @@ ENERGY_STATE_VALUE = 0  # 0 = Not used (default)
 # Retry configuration for shared gateway (WAGO meter also uses this gateway)
 MAX_RETRIES = 3
 RETRY_DELAY = 2.0  # seconds between retries
-INTER_REQUEST_DELAY = 0.5  # delay between consecutive requests
+INTER_REQUEST_DELAY = 0.2  # delay between consecutive requests (reduced from 0.5s)
 
 # Timeout for Modbus operations
-TIMEOUT = 30  # seconds - handles queue delays from other devices
+TIMEOUT = 5  # seconds - local network should respond quickly
+# (Reduced from 30s: 5s × 3 retries = 15s recovery vs 90s previously)
 
 # ============================================================================
 # Register Definitions
@@ -160,7 +168,11 @@ async def connect_gateway() -> Optional[AsyncModbusTcpClient]:
         client = AsyncModbusTcpClient(
             host=GATEWAY_IP,
             port=MODBUS_PORT,
-            timeout=TIMEOUT
+            timeout=TIMEOUT,
+            retries=3,              # Built-in retry mechanism
+            reconnect_delay=0.5,    # Start reconnect delay at 500ms
+            reconnect_delay_max=10, # Cap reconnect delay at 10s
+            name="LG_R290"          # Logger name for debugging
         )
 
         await client.connect()
