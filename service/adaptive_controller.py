@@ -210,7 +210,8 @@ class AdaptiveController:
                         f"diff: {temp_diff:.1f}°C)"
                     )
                 else:
-                    logger.error("AI Mode: Failed to adjust flow temperature")
+                    # READ-ONLY MODE: Suppress error spam (expected behavior)
+                    logger.debug("AI Mode: Write operations disabled (read-only mode)")
             else:
                 logger.debug(
                     f"AI Mode: No adjustment needed "
