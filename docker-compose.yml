@@ -1,35 +1,20 @@
 version: '3.8'
 
 services:
-  heatpump-mock:
-    build:
-      context: ./mock
-      dockerfile: Dockerfile
-    container_name: lg_r290_mock
-    ports:
-      - "5020:502"
-    volumes:
-      - ./mock/registers.json:/app/registers.json
-    networks:
-      - heatpump-net
-    restart: unless-stopped
-
   heatpump-service:
     build:
-      context: ./service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: service/Dockerfile
     container_name: lg_r290_service
     ports:
       - "8002:8000"
     environment:
-      - MODBUS_HOST=${MODBUS_HOST:-heatpump-mock}
-      - MODBUS_PORT=${MODBUS_PORT:-502}
-      - MODBUS_UNIT_ID=${MODBUS_UNIT_ID:-1}
-      - POLL_INTERVAL=${POLL_INTERVAL:-5}
+      - MODBUS_HOST=${MODBUS_HOST:-192.168.2.10}  # Waveshare gateway IP
+      - MODBUS_PORT=${MODBUS_PORT:-8899}  # Waveshare gateway port
+      - MODBUS_UNIT_ID=${MODBUS_UNIT_ID:-7}  # LG Therma V device ID
+      - POLL_INTERVAL=${POLL_INTERVAL:-10}  # Proven interval for continuous polling
       - THERMOSTAT_API_URL=${THERMOSTAT_API_URL:-http://iot-api:8000}
       - TZ=${TZ:-Europe/Vienna}
-    depends_on:
-      - heatpump-mock
     networks:
       - heatpump-net
       - shelly_bt_temp_default
