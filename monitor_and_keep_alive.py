@@ -155,7 +155,9 @@ async def monitoring_loop():
                     logger.info(f"[Poll #{poll_count:4d}] {status_line}")
 
                 else:
-                    # Failed to read
+                    # Failed to read - touch status file to prevent supervision timeout
+                    STATUS_FILE.touch(exist_ok=True)
+
                     consecutive_errors += 1
                     logger.warning(
                         f"Failed to read registers "
@@ -165,7 +167,11 @@ async def monitoring_loop():
                     # Too many consecutive errors - try reconnecting
                     if consecutive_errors >= max_consecutive_errors:
                         logger.error("Too many consecutive errors - attempting reconnect")
-                        client.close()
+                        try:
+                            client.close()
+                        except Exception as close_err:
+                            logger.debug(f"Error closing client: {close_err}")
+
                         await asyncio.sleep(2)
 
                         client = await connect_gateway()
@@ -176,8 +182,30 @@ async def monitoring_loop():
                             logger.error("❌ Reconnection failed - will retry next cycle")
 
             except Exception as e:
+                # Critical: Touch status file even on exception to prevent supervision timeout
+                try:
+                    STATUS_FILE.touch(exist_ok=True)
+                except Exception as touch_err:
+                    logger.critical(f"Cannot touch status file: {touch_err}")
+
                 consecutive_errors += 1
-                logger.error(f"Error in polling cycle: {e}", exc_info=True)
+                logger.error(f"Error in polling cycle (poll #{poll_count}): {e}", exc_info=True)
+
+                # If we've lost the client connection, try to reconnect
+                if consecutive_errors >= max_consecutive_errors:
+                    logger.error("Too many exceptions - attempting full reconnect")
+                    try:
+                        if client:
+                            client.close()
+                    except Exception:
+                        pass
+
+                    client = await connect_gateway()
+                    if client:
+                        logger.info("✅ Reconnected after exceptions")
+                        consecutive_errors = 0
+                    else:
+                        logger.error("❌ Reconnection failed after exceptions")
 
             # Wait for next poll interval
             await asyncio.sleep(POLL_INTERVAL)
@@ -205,7 +233,12 @@ async def main():
         await monitoring_loop()
         return True
     except Exception as e:
-        logger.error(f"Fatal error: {e}", exc_info=True)
+        logger.critical(f"Fatal error - daemon crashed: {e}", exc_info=True)
+        # Try to touch status file one last time before dying
+        try:
+            STATUS_FILE.touch(exist_ok=True)
+        except Exception:
+            pass
         return False
 
 
