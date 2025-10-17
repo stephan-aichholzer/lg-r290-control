@@ -18,6 +18,7 @@ services:
     networks:
       - heatpump-net
       - shelly_bt_temp_default
+      - modbus_default
     restart: unless-stopped
 
   heatpump-ui:
@@ -37,4 +38,6 @@ networks:
   heatpump-net:
     driver: bridge
   shelly_bt_temp_default:
+    external: true
+  modbus_default:
     external: true

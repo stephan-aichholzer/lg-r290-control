@@ -15,6 +15,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+from prometheus_client import Gauge, make_asgi_app
 
 # Import shared Modbus library (replaces modbus_client.py)
 import sys
@@ -45,6 +46,68 @@ scheduler: Optional[Scheduler] = None
 
 # Feature flags - set to False to disable features
 ENABLE_SCHEDULER = True  # Set to False to disable scheduler
+
+# ============================================================================
+# Prometheus Metrics
+# ============================================================================
+
+# Temperature metrics
+heatpump_flow_temp = Gauge('heatpump_flow_temperature_celsius', 'Heat pump flow temperature (water outlet)')
+heatpump_return_temp = Gauge('heatpump_return_temperature_celsius', 'Heat pump return temperature (water inlet)')
+heatpump_outdoor_temp = Gauge('heatpump_outdoor_temperature_celsius', 'Outdoor air temperature')
+heatpump_target_temp = Gauge('heatpump_target_temperature_celsius', 'Target temperature setpoint')
+
+# Status metrics
+heatpump_power_state = Gauge('heatpump_power_state', 'Power state (0=OFF, 1=ON)')
+heatpump_compressor_running = Gauge('heatpump_compressor_running', 'Compressor running (0=OFF, 1=ON)')
+heatpump_water_pump_running = Gauge('heatpump_water_pump_running', 'Water pump running (0=OFF, 1=ON)')
+heatpump_operating_mode = Gauge('heatpump_operating_mode', 'Operating mode (0=Standby, 1=Cooling, 2=Heating, 3=Auto)')
+heatpump_error_code = Gauge('heatpump_error_code', 'Error code (0=no error)')
+
+# Calculated metrics
+heatpump_temp_delta = Gauge('heatpump_temperature_delta_celsius', 'Temperature delta (flow - return)')
+
+
+async def update_prometheus_metrics():
+    """Background task to update Prometheus metrics from status.json"""
+    logger.info("Starting Prometheus metrics updater (30s interval)")
+
+    while True:
+        try:
+            if STATUS_FILE.exists():
+                with open(STATUS_FILE, 'r') as f:
+                    data = json.load(f)
+
+                # Temperature metrics
+                flow = data.get('flow_temp')
+                ret = data.get('return_temp')
+                outdoor = data.get('outdoor_temp')
+                target = data.get('target_temp')
+
+                if flow is not None:
+                    heatpump_flow_temp.set(flow)
+                if ret is not None:
+                    heatpump_return_temp.set(ret)
+                if outdoor is not None:
+                    heatpump_outdoor_temp.set(outdoor)
+                if target is not None:
+                    heatpump_target_temp.set(target)
+
+                # Calculate delta if both temps available
+                if flow is not None and ret is not None:
+                    heatpump_temp_delta.set(flow - ret)
+
+                # Status metrics
+                heatpump_power_state.set(1 if data.get('power_state') == 'ON' else 0)
+                heatpump_compressor_running.set(1 if data.get('operating_mode') == 2 else 0)  # 2=Heating
+                heatpump_water_pump_running.set(1 if data.get('power_state') == 'ON' else 0)
+                heatpump_operating_mode.set(data.get('operating_mode', 0))
+                heatpump_error_code.set(data.get('error_code', 0))
+
+        except Exception as e:
+            logger.error(f"Error updating Prometheus metrics: {e}")
+
+        await asyncio.sleep(30)  # Update every 30s
 
 
 @asynccontextmanager
@@ -78,6 +141,9 @@ async def lifespan(app: FastAPI):
         logger.info(f"Scheduler started (enabled={scheduler.enabled})")
     else:
         logger.info("Scheduler disabled via ENABLE_SCHEDULER flag")
+
+    # Start Prometheus metrics updater
+    asyncio.create_task(update_prometheus_metrics())
 
     yield
 
@@ -135,6 +201,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Mount Prometheus metrics endpoint
+metrics_app = make_asgi_app()
+app.mount("/metrics", metrics_app)
 
 
 # Pydantic models for API
