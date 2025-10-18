@@ -278,15 +278,30 @@ After extensive testing, these are **confirmed truths**:
 
 ## The Journey in Numbers
 
+### Phase 1: Initial Discovery (October 2024)
 - **Days of debugging:** ~3-4
 - **Test scripts written:** 12+ (consolidated to 3)
 - **Register combinations tried:** 50+
 - **"This should work!" moments:** 237
 - **Times we thought we broke it:** 8
 - **Coffee consumed:** Classified ☕
-- **Final working solution:** 3 Python scripts, ~400 lines total
-- **Longest stable run:** 15+ minutes (and counting!)
-- **Satisfaction level:** 💯
+
+### Phase 2: Production System (October 2024)
+- **Docker containers:** 3 (service, UI, mock)
+- **REST API endpoints:** 15+
+- **UML diagrams created:** 11
+- **Documentation pages:** 10+
+- **Lines of Python code:** ~3,500
+- **Prometheus metrics exported:** 10
+- **Docker networks joined:** 3
+- **Uptime achieved:** Days without restart! ✨
+
+### Overall Stats
+- **Total time invested:** ~2 weeks
+- **Registers fully documented:** 20+
+- **Features implemented:** Read-only mode, Scheduler, AI Mode, Prometheus, LG Auto mode offset
+- **Bugs fixed:** Too many to count
+- **Satisfaction level:** 💯💯💯
 
 ---
 
@@ -407,6 +422,218 @@ POLL_INTERVAL = 10  # seconds (5-10s recommended)
 
 ---
 
+## Chapter 9: The Production Evolution
+
+*"Three scripts? We can do better than that!"*
+
+After proving the concept works, we built a proper production system:
+
+### Docker-Compose Stack
+Goodbye manual scripts, hello container orchestration:
+
+```yaml
+services:
+  heatpump-service:    # FastAPI REST API
+  heatpump-ui:         # Web interface
+  heatpump-mock:       # Testing without hardware
+```
+
+**Key Features:**
+- FastAPI service with OpenAPI docs
+- Background monitor daemon (replaces keep_alive.py)
+- Atomic status.json caching for fast API access
+- Health checks and auto-restart
+- Read-only mode for safety
+
+### The Monitor Daemon
+Our keep_alive.py evolved into a robust daemon:
+- Polls every 30 seconds (optimized from 10s)
+- Caches status to JSON file
+- Prevents supervision timeout with file touch
+- Graceful error handling with reconnection
+- Console logging: `[ON ] Heating (Auto +2K) | Flow: 39.2°C | ...`
+
+**Lesson 7:** Moving from proof-of-concept scripts to production infrastructure requires health checks, supervision, and graceful degradation.
+
+---
+
+## Chapter 10: The Two's Complement Bug
+
+*"Why does -1K show as +65535K?"*
+
+After implementing LG Auto mode offset control (register 40005), we hit a sneaky bug:
+
+```
+User sets offset: -1K
+Display shows: Auto +65535K  😱
+```
+
+**The Problem:** Register 40005 stores signed integers using two's complement:
+- `-1` is stored as `0xFFFF` (65535 unsigned)
+- We were reading it as unsigned: 65535 instead of -1
+
+**The Fix:**
+```python
+def decode_signed_int(value: int) -> int:
+    """Convert unsigned 16-bit to signed (two's complement)"""
+    if value > 32767:
+        value = value - 65536
+    return value
+```
+
+Applied to `auto_mode_offset` in `read_all_registers()`.
+
+**Result:**
+- `-1` now displays correctly as `Auto -1K` ✓
+- All negative offsets work perfectly ✓
+
+**Lesson 8:** Always handle signed integers correctly in Modbus registers. Two's complement is standard but easy to forget!
+
+---
+
+## Chapter 11: The Register Discovery
+
+*"Wait, there are TWO different operating mode registers?!"*
+
+Confusion arose when comparing LG's "Auto" mode with our thermostat's "AUTO" mode:
+
+**The Discovery:**
+- **INPUT 30002** (operating_mode): What heat pump is ACTUALLY doing
+  - 0=Standby, 1=Defrost, 2=Heating, 3=Cooling
+  - Read-only, changes based on conditions
+
+- **HOLDING 40001** (op_mode): User's MODE SETTING
+  - 0=Cool, 3=Auto, 4=Heat
+  - Read/write, stays until changed
+
+- **HOLDING 40005** (auto_mode_offset): NEW! ±5K adjustment
+  - Only active when 40001=Auto
+  - Fine-tune LG's internal heating curve
+  - Range: -5K to +5K
+
+**Example:**
+```
+User setting (40001): Auto (3)
+Current cycle (30002): Heating (2)
+Auto offset (40005): +2K
+
+Display: "Heating (LG: Auto +2K)"
+```
+
+This explains why heat pump can be in "Auto" mode but actively "Heating" - the user setting is Auto, but conditions dictate heating right now.
+
+**Lesson 9:** Read the register documentation CAREFULLY. Similar-sounding registers may have completely different purposes!
+
+---
+
+## Chapter 12: The Prometheus Journey
+
+*"Let's add monitoring!"*
+
+We already had the WAGO energy meter publishing to Prometheus. Why not add heat pump metrics?
+
+### The Integration
+1. **FastAPI /metrics endpoint** using prometheus-client
+2. **Background metrics updater** reads status.json every 30s
+3. **Prometheus scrapes** lg_r290_service:8000/metrics
+4. **Docker network magic** - joined modbus_default network
+5. **Grafana dashboards** visualize everything
+
+### Metrics Exported
+Temperature metrics:
+- `heatpump_flow_temperature_celsius`
+- `heatpump_return_temperature_celsius`
+- `heatpump_outdoor_temperature_celsius`
+- `heatpump_target_temperature_celsius`
+- `heatpump_temperature_delta_celsius`
+
+Status metrics:
+- `heatpump_power_state` (0=OFF, 1=ON)
+- `heatpump_compressor_running` (0=OFF, 1=ON)
+- `heatpump_water_pump_running` (0=OFF, 1=ON)
+- `heatpump_operating_mode` (0-3)
+- `heatpump_error_code`
+
+### The Network Challenge
+Heat pump service now joins THREE networks:
+- `heatpump-net` (internal) - for mock server
+- `shelly_bt_temp_default` (external) - for thermostat API
+- `modbus_default` (external) - for Prometheus
+
+**Why it works:** Docker DNS resolves container names across networks. Prometheus scrapes `lg_r290_service:8000/metrics` without needing host IP or port mapping!
+
+**Lesson 10:** Prometheus metrics are FREE performance monitoring. Export everything, correlate later!
+
+---
+
+## Chapter 13: The PyModbus Optimization
+
+*"Why are the logs so noisy?"*
+
+After implementing retry logic, we saw these errors constantly:
+```
+ERROR:pymodbus.client: list index out of range
+ERROR:pymodbus.protocol: unpack requires a buffer of 2 bytes
+```
+
+But our retries recovered! These weren't real errors.
+
+### The Problem
+PyModbus logs EVERY exception at ERROR level, even when retry logic recovers successfully.
+
+### The Solution
+```python
+# Suppress PyModbus internal error logging
+logging.getLogger('pymodbus').setLevel(logging.CRITICAL)
+logging.getLogger('pymodbus.client').setLevel(logging.CRITICAL)
+logging.getLogger('pymodbus.protocol').setLevel(logging.CRITICAL)
+```
+
+Also optimized:
+- Timeout: 30s → 5s (6× faster recovery)
+- Inter-request delay: 500ms → 200ms (less latency)
+- Added explicit retry/reconnect configuration
+
+**Result:**
+- Clean logs showing only real problems ✓
+- <6% error rate from RS-485 collisions ✓
+- All errors recovered automatically ✓
+
+**Lesson 11:** Tune your retry timeouts aggressively for local networks. 30s timeout on a LAN is overkill!
+
+---
+
+## Chapter 14: The Documentation Effort
+
+*"We should probably document all this..."*
+
+Created comprehensive documentation suite:
+- **ARCHITECTURE.md** - System overview
+- **MODBUS.md** - Complete register reference
+- **PYMODBUS_OPTIMIZATION.md** - Tuning decisions
+- **UML Diagrams** (11 sequence diagrams!)
+  - Manual control flow
+  - AI Mode control
+  - Power control
+  - Scheduler
+  - LG Auto mode offset
+  - Prometheus metrics integration
+  - Network architecture
+  - Error handling
+  - ... and more!
+
+Also added:
+- **API documentation** via OpenAPI/Swagger
+- **README.md** with quick start
+- **CHANGELOG.md** tracking versions
+- **This journey document!**
+
+**Why?** Because 6 months from now, we won't remember why we set timeout=5 or why register 40005 needs two's complement conversion.
+
+**Lesson 12:** Document as you go. Future-you will thank present-you!
+
+---
+
 ## The Happy Ending
 
 After days of frustration, countless test scripts, mysterious shutdowns, and one too many "this should definitely work!" moments...
@@ -474,13 +701,52 @@ This journey taught us that modern "smart" devices often have hidden requirement
 
 ## Status: MISSION ACCOMPLISHED ✅
 
-Heat pump: Running
-Control: External
-Polling: Continuous
-Errors: Zero
-Satisfaction: Maximum
+**Current System State (2025-10-18):**
+
+| Component | Status |
+|-----------|--------|
+| Heat Pump | 🟢 Running in production |
+| External Control | ✅ Complete via Modbus TCP |
+| Continuous Polling | ✅ 30s interval, auto-recovery |
+| Docker Stack | 🐳 3 containers, health-checked |
+| REST API | 🌐 FastAPI with OpenAPI docs |
+| Web UI | 💻 Real-time monitoring dashboard |
+| Prometheus Metrics | 📊 10 metrics exported |
+| Grafana Integration | 📈 Temperature trends, cycles |
+| LG Auto Mode Offset | ±5K Fine-tuning working |
+| Error Rate | <6% (all auto-recovered) |
+| Uptime | 🎯 Days without intervention |
+| Read-Only Mode | 🔒 Safety mode active |
+| Documentation | 📚 11 UML diagrams, 10+ docs |
+
+**What's Working:**
+- ✅ Stable Modbus communication with retry logic
+- ✅ Shared RS-485 bus with WAGO meter (no issues)
+- ✅ Real-time status monitoring
+- ✅ Temperature control (read-only for safety)
+- ✅ Prometheus metrics export
+- ✅ Cross-stack Docker networking
+- ✅ Two's complement signed integers handled correctly
+- ✅ Operating mode distinction (cycle vs setting)
+- ✅ Automatic error recovery and reconnection
+- ✅ Health checks and supervision
+
+**Not Quite There Yet (The Dream):**
+- ⏳ Full write access (currently read-only for safety)
+- ⏳ AI Mode dynamic control (disabled in read-only)
+- ⏳ Automated testing suite
+- ⏳ Home Assistant integration
+- ⏳ Efficiency analytics (COP calculation)
+
+**But we're 90% there!** The hard parts are solved:
+- Continuous polling requirement ✓
+- Register mapping ✓
+- Error handling ✓
+- Production infrastructure ✓
+- Monitoring ✓
 
 *The journey was frustrating. The solution was simple. The learning was priceless.*
+*And the documentation is comprehensive enough that future-us won't be lost!*
 
 ---
 
