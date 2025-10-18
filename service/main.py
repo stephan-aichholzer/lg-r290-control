@@ -15,11 +15,12 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+from prometheus_client import Gauge, make_asgi_app
 
 # Import shared Modbus library (replaces modbus_client.py)
 import sys
 sys.path.insert(0, '/app')
-from lg_r290_modbus import connect_gateway, set_power, set_target_temperature
+from lg_r290_modbus import connect_gateway, set_power, set_target_temperature, set_auto_mode_offset
 
 from adaptive_controller import AdaptiveController
 from scheduler import Scheduler
@@ -45,6 +46,68 @@ scheduler: Optional[Scheduler] = None
 
 # Feature flags - set to False to disable features
 ENABLE_SCHEDULER = True  # Set to False to disable scheduler
+
+# ============================================================================
+# Prometheus Metrics
+# ============================================================================
+
+# Temperature metrics
+heatpump_flow_temp = Gauge('heatpump_flow_temperature_celsius', 'Heat pump flow temperature (water outlet)')
+heatpump_return_temp = Gauge('heatpump_return_temperature_celsius', 'Heat pump return temperature (water inlet)')
+heatpump_outdoor_temp = Gauge('heatpump_outdoor_temperature_celsius', 'Outdoor air temperature')
+heatpump_target_temp = Gauge('heatpump_target_temperature_celsius', 'Target temperature setpoint')
+
+# Status metrics
+heatpump_power_state = Gauge('heatpump_power_state', 'Power state (0=OFF, 1=ON)')
+heatpump_compressor_running = Gauge('heatpump_compressor_running', 'Compressor running (0=OFF, 1=ON)')
+heatpump_water_pump_running = Gauge('heatpump_water_pump_running', 'Water pump running (0=OFF, 1=ON)')
+heatpump_operating_mode = Gauge('heatpump_operating_mode', 'Operating mode (0=Standby, 1=Cooling, 2=Heating, 3=Auto)')
+heatpump_error_code = Gauge('heatpump_error_code', 'Error code (0=no error)')
+
+# Calculated metrics
+heatpump_temp_delta = Gauge('heatpump_temperature_delta_celsius', 'Temperature delta (flow - return)')
+
+
+async def update_prometheus_metrics():
+    """Background task to update Prometheus metrics from status.json"""
+    logger.info("Starting Prometheus metrics updater (30s interval)")
+
+    while True:
+        try:
+            if STATUS_FILE.exists():
+                with open(STATUS_FILE, 'r') as f:
+                    data = json.load(f)
+
+                # Temperature metrics
+                flow = data.get('flow_temp')
+                ret = data.get('return_temp')
+                outdoor = data.get('outdoor_temp')
+                target = data.get('target_temp')
+
+                if flow is not None:
+                    heatpump_flow_temp.set(flow)
+                if ret is not None:
+                    heatpump_return_temp.set(ret)
+                if outdoor is not None:
+                    heatpump_outdoor_temp.set(outdoor)
+                if target is not None:
+                    heatpump_target_temp.set(target)
+
+                # Calculate delta if both temps available
+                if flow is not None and ret is not None:
+                    heatpump_temp_delta.set(flow - ret)
+
+                # Status metrics
+                heatpump_power_state.set(1 if data.get('power_state') == 'ON' else 0)
+                heatpump_compressor_running.set(1 if data.get('operating_mode') in [1, 2] else 0)  # 1=Defrost, 2=Heating
+                heatpump_water_pump_running.set(1 if data.get('operating_mode') in [1, 2] else 0)  # Running when compressor active
+                heatpump_operating_mode.set(data.get('operating_mode', 0))
+                heatpump_error_code.set(data.get('error_code', 0))
+
+        except Exception as e:
+            logger.error(f"Error updating Prometheus metrics: {e}")
+
+        await asyncio.sleep(30)  # Update every 30s
 
 
 @asynccontextmanager
@@ -78,6 +141,9 @@ async def lifespan(app: FastAPI):
         logger.info(f"Scheduler started (enabled={scheduler.enabled})")
     else:
         logger.info("Scheduler disabled via ENABLE_SCHEDULER flag")
+
+    # Start Prometheus metrics updater
+    asyncio.create_task(update_prometheus_metrics())
 
     yield
 
@@ -136,6 +202,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Mount Prometheus metrics endpoint
+metrics_app = make_asgi_app()
+app.mount("/metrics", metrics_app)
+
 
 # Pydantic models for API
 class HeatPumpStatus(BaseModel):
@@ -143,8 +213,10 @@ class HeatPumpStatus(BaseModel):
     is_on: bool = Field(description="Heat pump power state (true=ON, false=OFF)")
     water_pump_running: bool = Field(description="Water circulation pump status")
     compressor_running: bool = Field(description="Compressor operational status")
-    operating_mode: str = Field(description="Current operating mode (Standby, Heating, Cooling)")
+    operating_mode: str = Field(description="Current operating mode (Standby, Heating, Cooling, Auto) - actual cycle state")
+    mode_setting: str = Field(description="LG mode setting (Cool, Heat, Auto) - HOLDING register 40001")
     target_temperature: float = Field(description="Target flow temperature setpoint in °C (20.0-60.0)")
+    auto_mode_offset: int = Field(description="LG Auto mode temperature offset in K (-5 to +5) - only used when mode_setting is Auto")
     flow_temperature: float = Field(description="Actual flow temperature (water outlet) in °C")
     return_temperature: float = Field(description="Return temperature (water inlet) in °C")
     flow_rate: float = Field(description="Water flow rate in liters per minute (LPM)")
@@ -196,6 +268,22 @@ class TemperatureSetpoint(BaseModel):
     model_config = {
         "json_schema_extra": {
             "examples": [{"temperature": 35.0}]
+        }
+    }
+
+
+class AutoModeOffset(BaseModel):
+    """Set LG Auto mode temperature offset."""
+    offset: int = Field(
+        description="Temperature offset in Kelvin (K)",
+        ge=-5,
+        le=5,
+        examples=[-2, 0, 2]
+    )
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{"offset": 2}]
         }
     }
 
@@ -288,12 +376,19 @@ async def get_status():
         with open(STATUS_FILE) as f:
             data = json.load(f)
 
-        # Map operating modes
+        # Map operating modes (INPUT 30002 - actual cycle state)
         mode_map = {
             0: "Standby",
             1: "Cooling",
             2: "Heating",
             3: "Auto"
+        }
+
+        # Map LG mode settings (HOLDING 40001 - user setting)
+        lg_mode_setting_map = {
+            0: "Cool",
+            3: "Auto",
+            4: "Heat"
         }
 
         # Map status.json format to API format
@@ -302,7 +397,9 @@ async def get_status():
             "water_pump_running": data['operating_mode'] in [1, 2],  # Running in Cooling/Heating
             "compressor_running": data['operating_mode'] in [1, 2],  # Running in Cooling/Heating
             "operating_mode": mode_map.get(data['operating_mode'], "Unknown"),
+            "mode_setting": lg_mode_setting_map.get(data['op_mode'], f"Unknown ({data['op_mode']})"),
             "target_temperature": data['target_temp'],
+            "auto_mode_offset": data.get('auto_mode_offset', 0),
             "flow_temperature": data['flow_temp'],
             "return_temperature": data['return_temp'],
             "flow_rate": 0.0,  # Not available in current register set
@@ -401,6 +498,48 @@ async def set_temperature_setpoint_endpoint(setpoint: TemperatureSetpoint):
             raise HTTPException(status_code=500, detail="Failed to set temperature")
     except Exception as e:
         logger.error(f"Error setting temperature: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post(
+    "/auto-mode-offset",
+    summary="Set LG Auto Mode Temperature Offset",
+    description="""
+    Adjust the LG Auto mode temperature by ±5K.
+
+    **Valid Range**: -5 to +5 Kelvin
+
+    **When Active**: Only affects heat pump when LG mode setting (HOLDING 40001) is set to Auto (3).
+    In manual Heat or Cool modes, this offset is ignored.
+
+    **Use Case**: Fine-tune the automatic temperature calculation without switching to manual control.
+    For example, if LG Auto mode calculates 35°C flow temperature but rooms feel too cold,
+    set offset to +2K to get 37°C.
+
+    **Effect**: Writes to Modbus holding register 40005 (Auto Mode Switch Value Circuit 1).
+    """,
+    tags=["Heat Pump"]
+)
+async def set_auto_mode_offset_endpoint(offset_control: AutoModeOffset):
+    """Set LG Auto mode temperature offset via Modbus TCP."""
+    if not modbus_client:
+        raise HTTPException(status_code=503, detail="Modbus client not connected")
+
+    # Validate offset range
+    if not -5 <= offset_control.offset <= 5:
+        raise HTTPException(status_code=400, detail="Offset must be between -5 and +5 Kelvin")
+
+    try:
+        # READ-ONLY MODE: Modbus write disabled
+        # success = await set_auto_mode_offset(modbus_client, offset_control.offset)
+        success = False  # Disabled
+        if False and success:
+            logger.info(f"LG Auto mode offset changed to {offset_control.offset:+d}K")
+            return {"status": "success", "auto_mode_offset": offset_control.offset}
+        else:
+            raise HTTPException(status_code=500, detail="Failed to set auto mode offset (read-only mode)")
+    except Exception as e:
+        logger.error(f"Error setting auto mode offset: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

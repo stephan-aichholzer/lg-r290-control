@@ -162,9 +162,15 @@ show_temperatures() {
             local target=$(echo "$response" | jq -r '.target_temperature // 0')
             local power=$(echo "$response" | jq -r '.is_on // false')
             local mode=$(echo "$response" | jq -r '.operating_mode // "Unknown"')
+            local mode_setting=$(echo "$response" | jq -r '.mode_setting // "Unknown"')
+            local auto_offset=$(echo "$response" | jq -r '.auto_mode_offset // 0')
 
             echo -e "  ${BOLD}Power:${NC}         $(if [ "$power" = "true" ]; then echo -e "${GREEN}ON${NC}"; else echo -e "${YELLOW}OFF${NC}"; fi)"
-            echo -e "  ${BOLD}Mode:${NC}          ${mode}"
+            if [ "$mode_setting" = "Auto" ] && [ "$auto_offset" != "0" ]; then
+                echo -e "  ${BOLD}Cycle:${NC}         ${mode} (LG setting: ${mode_setting} ${auto_offset:+${auto_offset}K})"
+            else
+                echo -e "  ${BOLD}Cycle:${NC}         ${mode} (LG setting: ${mode_setting})"
+            fi
             echo ""
             echo -e "  ${BOLD}Target Temp:${NC}   ${target}°C"
             echo -e "  ${BOLD}Flow Temp:${NC}     ${RED}${flow}°C${NC} (water outlet)"
