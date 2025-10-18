@@ -244,32 +244,37 @@ python3 dump_all_registers.py > state.txt
 
 After extensive testing, these are **confirmed truths**:
 
-### ✅ Fact 1: Energy State Register is CRITICAL
-- Register 40010 must be set to 5 (ON-Command Step2)
-- Values 0-4 result in immediate or delayed shutdown
-- This enables "external energy management mode"
-
-### ✅ Fact 2: Continuous Polling is REQUIRED
-- Must poll status every 5-10 seconds
+### ✅ Fact 1: Continuous Polling is REQUIRED (The Real Secret!)
+- Must poll status every 5-30 seconds
 - Heat pump interprets silence as controller failure
 - Safety feature: prevents runaway heating if controller crashes
+- **This is THE critical requirement - everything else is secondary!**
 
-### ✅ Fact 3: Polling Stops = Heat Pump Stops
+### ✅ Fact 2: Polling Stops = Heat Pump Stops
 - Tested and confirmed multiple times
 - Shutdown occurs within ~60 seconds of last communication
 - Not a bug, it's a feature!
 
-### ✅ Fact 4: CH03 is Informational, Not an Error
+### ❌ Myth: Energy State Register (40010) is Critical
+**Previously thought:** Register 40010 must be set to 5 for external control
+**Actually discovered:** It works fine with 0 (Not used) as long as you poll!
+- The polling is what matters, not the Energy State value
+- Setting it to 5 during early testing coincided with starting continuous polling
+- Classic correlation vs causation confusion
+- **Lesson:** The simplest explanation is often correct
+
+### ✅ Fact 3: CH03 is Informational, Not an Error
 - "External Control Mode Active"
 - Locks out ThinQ and touchscreen to prevent conflicts
 - Normal and expected behavior
 
-### ✅ Fact 5: Shared RS-485 Bus Works Fine
-- WAGO meter (30s polling) + LG Therma V (10s polling)
+### ✅ Fact 4: Shared RS-485 Bus Works Fine
+- WAGO meter (30s polling) + LG Therma V (30s polling)
 - No interference with proper retry logic
 - 3 retries with exponential backoff handles collisions
+- <6% error rate, all recovered automatically
 
-### ✅ Fact 6: RMC Must Be in SLAVE Mode
+### ✅ Fact 5: RMC Must Be in SLAVE Mode
 - Touchscreen setting: Installation Menu → RMC Setting → SLAVE
 - MASTER mode blocks external Modbus control
 - Required but not sufficient (you also need continuous polling!)
@@ -631,6 +636,105 @@ Also added:
 **Why?** Because 6 months from now, we won't remember why we set timeout=5 or why register 40005 needs two's complement conversion.
 
 **Lesson 12:** Document as you go. Future-you will thank present-you!
+
+---
+
+## Chapter 15: The Energy State Plot Twist
+
+*"Wait... we don't need register 40010 at all?!"*
+
+Remember all that struggle with Energy State (register 40010) from Chapter 4? The endless testing of values 0, 2, 4, 5? The assumption it was CRITICAL for external control?
+
+**The Plot Twist:** After months of production operation with continuous polling, we discovered:
+
+```python
+ENERGY_STATE_VALUE = 0  # 0 = Not used (default)
+```
+
+**IT WORKS FINE WITH 0!** 🤦
+
+The real secret was never the Energy State register. It was always:
+1. **Continuous polling** (every 10-30 seconds)
+2. **That's it. That's the whole secret.**
+
+Setting Energy State = 5 felt like progress during debugging because we were ALSO starting to poll continuously at that point. Classic correlation vs causation mistake!
+
+**The Real Requirements:**
+- ✅ RMC mode = SLAVE
+- ✅ Continuous Modbus polling (heartbeat)
+- ❌ Energy State register = Not actually needed!
+
+**Lesson 13:** Sometimes the "critical" thing you discovered was just a red herring. The simple solution (keep talking to it) was right all along.
+
+---
+
+## Chapter 16: The Ultimate Irony
+
+*"So... about that LG Auto mode..."*
+
+After building:
+- Custom AI Mode with heating curves
+- Outdoor temperature compensation
+- Dynamic flow temperature calculation
+- Thermostat API integration
+- Sophisticated control algorithms
+
+We discovered register 40005 (Auto Mode Offset) and realized:
+
+**LG ALREADY HAD AN AUTO MODE THAT DOES ALL OF THIS!** 😂
+
+The LG Therma V has its own:
+- Internal heating curve
+- Outdoor temperature sensor
+- Automatic flow temperature calculation
+- Fine-tuning via ±5K offset (register 40005)
+
+**The Irony:**
+```
+What we built:                  What LG included:
+─────────────────              ──────────────────
+✓ Heating curves               ✓ Built-in heating curve
+✓ Outdoor temp sensing         ✓ Outdoor sensor (INPUT 30013)
+✓ Auto calculation             ✓ LG Auto mode (HOLDING 40001=3)
+✓ Fine-tuning offset           ✓ Auto offset (HOLDING 40005 ±5K)
+✓ Complex algorithm            ✓ Already done by LG engineers
+```
+
+**But here's the thing:**
+
+We don't regret ANY of it! Here's why:
+
+**What We Gained:**
+1. **Deep Understanding** - We know EXACTLY how heating curves work
+2. **Flexibility** - We can switch between LG Auto and our AI Mode
+3. **Integration** - Our system talks to the thermostat, theirs doesn't
+4. **Monitoring** - We export Prometheus metrics, track everything
+5. **Learning** - Understanding the physics makes us better users
+6. **Fun** - Let's be honest, coding this was genuinely enjoyable
+7. **Control** - We're not locked into LG's algorithm
+8. **Documentation** - We now understand their system better than their manual
+
+**The Sarcastic Truth:**
+*"Sure, we could have just used LG's Auto mode from day one. But then we wouldn't have learned about:*
+- *Modbus protocols and retry logic*
+- *Two's complement signed integers*
+- *Docker networking black magic*
+- *Prometheus metrics integration*
+- *The satisfaction of making it work ourselves"*
+
+**Lesson 14:** Sometimes the journey is more valuable than the destination. We set out to replace LG's proprietary control, and ended up with:
+- ✅ Production-grade monitoring infrastructure
+- ✅ Deep knowledge of heat pump physics
+- ✅ Ability to choose: LG Auto OR our AI Mode
+- ✅ Comprehensive documentation
+- ✅ A fun story to tell
+- ✅ Skills that transfer to other projects
+
+Would LG Auto mode alone have been enough? Probably.
+
+Was building our own system worth it? **Absolutely!**
+
+*"The best code is the code you learned from, even if you don't end up using it."*
 
 ---
 
