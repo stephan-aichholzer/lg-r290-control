@@ -94,8 +94,12 @@ def format_status_line(status: dict) -> str:
     user_modes = {0: "Cool", 3: "Auto", 4: "Heat"}
     user_mode = user_modes.get(status['op_mode'], f"M{status['op_mode']}")
 
+    # Auto mode offset (HOLDING 40005) - only relevant in Auto mode
+    offset = status.get('auto_mode_offset', 0)
+    offset_str = f"{offset:+d}K" if status['op_mode'] == 3 and offset != 0 else ""
+
     return (
-        f"[{status['power_state']:3s}] {cycle_str:8s}({user_mode:4s}) | "
+        f"[{status['power_state']:3s}] {cycle_str:8s}({user_mode:4s}{offset_str:4s}) | "
         f"Target: {status['target_temp']:4.1f}°C | "
         f"Flow: {status['flow_temp']:5.1f}°C | "
         f"Return: {status['return_temp']:5.1f}°C | "

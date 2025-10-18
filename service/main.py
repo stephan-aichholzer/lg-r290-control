@@ -20,7 +20,7 @@ from prometheus_client import Gauge, make_asgi_app
 # Import shared Modbus library (replaces modbus_client.py)
 import sys
 sys.path.insert(0, '/app')
-from lg_r290_modbus import connect_gateway, set_power, set_target_temperature
+from lg_r290_modbus import connect_gateway, set_power, set_target_temperature, set_auto_mode_offset
 
 from adaptive_controller import AdaptiveController
 from scheduler import Scheduler
@@ -216,6 +216,7 @@ class HeatPumpStatus(BaseModel):
     operating_mode: str = Field(description="Current operating mode (Standby, Heating, Cooling, Auto) - actual cycle state")
     mode_setting: str = Field(description="LG mode setting (Cool, Heat, Auto) - HOLDING register 40001")
     target_temperature: float = Field(description="Target flow temperature setpoint in °C (20.0-60.0)")
+    auto_mode_offset: int = Field(description="LG Auto mode temperature offset in K (-5 to +5) - only used when mode_setting is Auto")
     flow_temperature: float = Field(description="Actual flow temperature (water outlet) in °C")
     return_temperature: float = Field(description="Return temperature (water inlet) in °C")
     flow_rate: float = Field(description="Water flow rate in liters per minute (LPM)")
@@ -267,6 +268,22 @@ class TemperatureSetpoint(BaseModel):
     model_config = {
         "json_schema_extra": {
             "examples": [{"temperature": 35.0}]
+        }
+    }
+
+
+class AutoModeOffset(BaseModel):
+    """Set LG Auto mode temperature offset."""
+    offset: int = Field(
+        description="Temperature offset in Kelvin (K)",
+        ge=-5,
+        le=5,
+        examples=[-2, 0, 2]
+    )
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{"offset": 2}]
         }
     }
 
@@ -382,6 +399,7 @@ async def get_status():
             "operating_mode": mode_map.get(data['operating_mode'], "Unknown"),
             "mode_setting": lg_mode_setting_map.get(data['op_mode'], f"Unknown ({data['op_mode']})"),
             "target_temperature": data['target_temp'],
+            "auto_mode_offset": data.get('auto_mode_offset', 0),
             "flow_temperature": data['flow_temp'],
             "return_temperature": data['return_temp'],
             "flow_rate": 0.0,  # Not available in current register set
@@ -480,6 +498,48 @@ async def set_temperature_setpoint_endpoint(setpoint: TemperatureSetpoint):
             raise HTTPException(status_code=500, detail="Failed to set temperature")
     except Exception as e:
         logger.error(f"Error setting temperature: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post(
+    "/auto-mode-offset",
+    summary="Set LG Auto Mode Temperature Offset",
+    description="""
+    Adjust the LG Auto mode temperature by ±5K.
+
+    **Valid Range**: -5 to +5 Kelvin
+
+    **When Active**: Only affects heat pump when LG mode setting (HOLDING 40001) is set to Auto (3).
+    In manual Heat or Cool modes, this offset is ignored.
+
+    **Use Case**: Fine-tune the automatic temperature calculation without switching to manual control.
+    For example, if LG Auto mode calculates 35°C flow temperature but rooms feel too cold,
+    set offset to +2K to get 37°C.
+
+    **Effect**: Writes to Modbus holding register 40005 (Auto Mode Switch Value Circuit 1).
+    """,
+    tags=["Heat Pump"]
+)
+async def set_auto_mode_offset_endpoint(offset_control: AutoModeOffset):
+    """Set LG Auto mode temperature offset via Modbus TCP."""
+    if not modbus_client:
+        raise HTTPException(status_code=503, detail="Modbus client not connected")
+
+    # Validate offset range
+    if not -5 <= offset_control.offset <= 5:
+        raise HTTPException(status_code=400, detail="Offset must be between -5 and +5 Kelvin")
+
+    try:
+        # READ-ONLY MODE: Modbus write disabled
+        # success = await set_auto_mode_offset(modbus_client, offset_control.offset)
+        success = False  # Disabled
+        if False and success:
+            logger.info(f"LG Auto mode offset changed to {offset_control.offset:+d}K")
+            return {"status": "success", "auto_mode_offset": offset_control.offset}
+        else:
+            raise HTTPException(status_code=500, detail="Failed to set auto mode offset (read-only mode)")
+    except Exception as e:
+        logger.error(f"Error setting auto mode offset: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

@@ -56,6 +56,7 @@ COIL_POWER = 0  # 00001: Enable/Disable
 HOLDING_OP_MODE = 0          # 40001: Operating Mode (0=Cooling, 3=Auto, 4=Heating)
 HOLDING_CONTROL_METHOD = 1   # 40002: Control Method (0=Water outlet, 1=Water inlet, 2=Room air)
 HOLDING_TARGET_TEMP = 2      # 40003: Target Temperature Circuit 1
+HOLDING_AUTO_MODE_OFFSET = 4 # 40005: Auto Mode Offset (-5 to +5K adjustment in Auto mode)
 HOLDING_ENERGY_STATE = 9     # 40010: Energy State Input (0=Not used, 5=ON-Command Step2)
 
 # Input registers (subtract 1 from documentation address)
@@ -258,6 +259,7 @@ async def read_all_registers(client: AsyncModbusTcpClient) -> Optional[Dict[str,
             'op_mode': holding_regs[HOLDING_OP_MODE],
             'control_method': holding_regs[HOLDING_CONTROL_METHOD],
             'target_temp': decode_temperature(holding_regs[HOLDING_TARGET_TEMP]),
+            'auto_mode_offset': holding_regs[HOLDING_AUTO_MODE_OFFSET],
             'energy_state': holding_regs[HOLDING_ENERGY_STATE],
         }
 
@@ -357,4 +359,44 @@ async def set_target_temperature(client: AsyncModbusTcpClient, temp: float) -> b
 
     except Exception as e:
         logger.error(f"Error setting temperature: {e}")
+        return False
+
+
+async def set_auto_mode_offset(client: AsyncModbusTcpClient, offset: int) -> bool:
+    """
+    Set LG Auto mode temperature offset.
+
+    This adjusts the calculated flow temperature when the heat pump is in Auto mode (40001=3).
+    The offset allows fine-tuning without switching to manual control.
+
+    Args:
+        client: Connected Modbus client
+        offset: Temperature offset in Kelvin (-5 to +5)
+
+    Returns:
+        True on success, False on failure
+    """
+    if offset < -5 or offset > 5:
+        logger.error(f"Auto mode offset {offset}K out of range (-5 to +5K)")
+        return False
+
+    try:
+        await asyncio.sleep(INTER_REQUEST_DELAY)
+        result = await modbus_operation_with_retry(
+            client,
+            client.write_register,
+            HOLDING_AUTO_MODE_OFFSET, offset,
+            operation_name=f"set auto mode offset to {offset:+d}K",
+            slave=DEVICE_ID
+        )
+
+        if result is None:
+            logger.error(f"Failed to set auto mode offset to {offset:+d}K")
+            return False
+
+        logger.info(f"Auto mode offset set to {offset:+d}K")
+        return True
+
+    except Exception as e:
+        logger.error(f"Error setting auto mode offset: {e}")
         return False
