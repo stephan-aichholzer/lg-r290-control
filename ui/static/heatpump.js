@@ -5,7 +5,8 @@ import { updateGauge, updateConnectionStatus, apiRequest } from './utils.js';
 // State
 let updateTimer = null;
 let userInteractingWithSlider = false;
-let pendingSliderValue = null;  // Track the value we're setting
+let pendingSliderValue = null;  // Track the temperature value we're setting
+let pendingOffsetValue = null;  // Track the offset value we're setting
 
 // UI Elements
 const elements = {
@@ -88,6 +89,21 @@ function initEventListeners() {
     elements.aiModeSwitch.addEventListener('change', async (e) => {
         await setAIMode(e.target.checked);
     });
+
+    // LG Auto mode offset buttons - delegate event listener
+    // Using event delegation on the parent to avoid adding listeners to each button
+    const offsetScale = document.querySelector('.offset-scale');
+    if (offsetScale) {
+        offsetScale.addEventListener('click', function(e) {
+            // Check if clicked element is a span (offset button)
+            if (e.target.tagName === 'SPAN') {
+                const offsetValue = parseInt(e.target.textContent);
+                if (!isNaN(offsetValue)) {
+                    setAutoModeOffset(offsetValue);
+                }
+            }
+        });
+    }
 }
 
 /**
@@ -217,26 +233,42 @@ function updateUI(data) {
         if (lgAutoSection) lgAutoSection.style.display = 'block';
 
         // Update offset value (register 40005: -5 to +5°C)
-        const offsetValue = data.auto_mode_offset || 0;
+        const deviceOffsetValue = data.auto_mode_offset || 0;
+
+        // If we have a pending value, check if device has caught up
+        if (pendingOffsetValue !== null) {
+            if (deviceOffsetValue === pendingOffsetValue) {
+                // Device has caught up to our requested value
+                console.log('Device caught up to pending offset value ' + pendingOffsetValue + '°C');
+                pendingOffsetValue = null;
+            } else {
+                // Still waiting for device to catch up
+                console.log('Waiting for device to catch up (pending: ' + pendingOffsetValue + '°C, device: ' + deviceOffsetValue + '°C)');
+            }
+        }
+
+        // Use pending value if set, otherwise use device value
+        const displayOffsetValue = pendingOffsetValue !== null ? pendingOffsetValue : deviceOffsetValue;
+
         const offsetElement = document.getElementById('lg-offset-value');
         if (offsetElement) {
-            offsetElement.textContent = offsetValue >= 0 ? '+' + offsetValue + '°C' : offsetValue + '°C';
+            offsetElement.textContent = displayOffsetValue >= 0 ? '+' + displayOffsetValue + '°C' : displayOffsetValue + '°C';
             // Add 'negative' class for blue color if value is negative
-            if (offsetValue < 0) {
+            if (displayOffsetValue < 0) {
                 offsetElement.classList.add('negative');
             } else {
                 offsetElement.classList.remove('negative');
             }
         }
 
-        // Highlight the active offset button
+        // Highlight the active offset button based on display value (pending or actual)
         const offsetButtons = document.querySelectorAll('.offset-scale span');
         // Convert NodeList to Array for older browser compatibility
         const buttonsArray = Array.prototype.slice.call(offsetButtons);
         for (let i = 0; i < buttonsArray.length; i++) {
             const button = buttonsArray[i];
             const buttonValue = parseInt(button.textContent);
-            if (buttonValue === offsetValue) {
+            if (buttonValue === displayOffsetValue) {
                 button.classList.add('active');
                 // Add 'negative' class for blue color if value is negative
                 if (buttonValue < 0) {
@@ -250,7 +282,7 @@ function updateUI(data) {
             }
         }
 
-        console.log('LG Auto mode active, offset: ' + offsetValue + '°C (register 40003 ignored)');
+        console.log('LG Auto mode active, offset: ' + displayOffsetValue + '°C (register 40003 ignored)');
     } else {
         // Manual mode (Heat or Cool) - show manual slider (register 40003 active), hide offset (register 40005 unused)
         if (manualSection) manualSection.style.display = 'block';
@@ -316,6 +348,43 @@ function setTemperature() {
         // Clear pending value on error and revert slider
         pendingSliderValue = null;
         userInteractingWithSlider = false;
+        setTimeout(updateStatus, 100);
+    });
+}
+
+/**
+ * Set LG Auto mode offset adjustment
+ * Fire-and-forget to keep UI responsive, using pending value pattern
+ * @param {number} offset - Offset value in °C (-5 to +5)
+ */
+function setAutoModeOffset(offset) {
+    // Validate range
+    if (offset < -5 || offset > 5) {
+        console.error('Invalid offset value:', offset);
+        alert('Offset must be between -5 and +5°C');
+        return;
+    }
+
+    // Mark this value as pending so updateUI won't override it
+    pendingOffsetValue = offset;
+    console.log('Setting LG Auto mode offset to ' + offset + '°C (marked as pending)');
+
+    // Fire request in background without blocking UI
+    apiRequest(CONFIG.HEATPUMP_API_URL + '/auto-mode-offset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ offset: offset })
+    })
+    .then(function(result) {
+        console.log('Auto mode offset set:', result);
+        // Quick status update after a short delay to check if device caught up
+        setTimeout(updateStatus, 500);
+    })
+    .catch(function(error) {
+        console.error('Failed to set auto mode offset:', error);
+        alert('Failed to set auto mode offset');
+        // Clear pending value on error and revert to actual device value
+        pendingOffsetValue = null;
         setTimeout(updateStatus, 100);
     });
 }

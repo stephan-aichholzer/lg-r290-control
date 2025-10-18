@@ -394,10 +394,15 @@ async def set_auto_mode_offset(client: AsyncModbusTcpClient, offset: int) -> boo
 
     try:
         await asyncio.sleep(INTER_REQUEST_DELAY)
+
+        # Convert negative values to two's complement (16-bit unsigned)
+        # Modbus uses unsigned integers, so -1 becomes 65535, -2 becomes 65534, etc.
+        register_value = offset if offset >= 0 else (65536 + offset)
+
         result = await modbus_operation_with_retry(
             client,
             client.write_register,
-            HOLDING_AUTO_MODE_OFFSET, offset,
+            HOLDING_AUTO_MODE_OFFSET, register_value,
             operation_name=f"set auto mode offset to {offset:+d}K",
             slave=DEVICE_ID
         )
@@ -406,7 +411,7 @@ async def set_auto_mode_offset(client: AsyncModbusTcpClient, offset: int) -> boo
             logger.error(f"Failed to set auto mode offset to {offset:+d}K")
             return False
 
-        logger.info(f"Auto mode offset set to {offset:+d}K")
+        logger.info(f"Auto mode offset set to {offset:+d}K (register value: {register_value})")
         return True
 
     except Exception as e:

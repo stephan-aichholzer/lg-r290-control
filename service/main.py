@@ -529,24 +529,39 @@ async def set_temperature_setpoint_endpoint(setpoint: TemperatureSetpoint):
 )
 async def set_auto_mode_offset_endpoint(offset_control: AutoModeOffset):
     """Set LG Auto mode temperature offset via Modbus TCP."""
+    logger.info(f"=== AUTO MODE OFFSET CHANGE REQUEST ===")
+    logger.info(f"Requested offset: {offset_control.offset:+d}°C")
+
     if not modbus_client:
+        logger.warning("Modbus client not connected - cannot set offset")
         raise HTTPException(status_code=503, detail="Modbus client not connected")
 
     # Validate offset range
     if not -5 <= offset_control.offset <= 5:
+        logger.error(f"Invalid offset value: {offset_control.offset} (must be -5 to +5)")
         raise HTTPException(status_code=400, detail="Offset must be between -5 and +5 Kelvin")
 
+    logger.info(f"Writing to register 40005: {offset_control.offset:+d}°C")
+    logger.info(f"Modbus client connected: {modbus_client.connected if hasattr(modbus_client, 'connected') else 'unknown'}")
+
     try:
-        # READ-ONLY MODE: Modbus write disabled
-        # success = await set_auto_mode_offset(modbus_client, offset_control.offset)
-        success = False  # Disabled
-        if False and success:
-            logger.info(f"LG Auto mode offset changed to {offset_control.offset:+d}K")
+        # WRITE ENABLED for auto mode offset adjustment only
+        success = await set_auto_mode_offset(modbus_client, offset_control.offset)
+
+        if success:
+            logger.info(f"✓ Successfully changed LG Auto mode offset to {offset_control.offset:+d}°C")
+            logger.info(f"Register 40005 updated")
+            logger.info(f"=== END AUTO MODE OFFSET REQUEST ===")
             return {"status": "success", "auto_mode_offset": offset_control.offset}
         else:
-            raise HTTPException(status_code=500, detail="Failed to set auto mode offset (read-only mode)")
+            logger.error(f"✗ Failed to write offset to register 40005")
+            logger.info(f"=== END AUTO MODE OFFSET REQUEST ===")
+            raise HTTPException(status_code=500, detail="Failed to set auto mode offset")
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
     except Exception as e:
-        logger.error(f"Error setting auto mode offset: {e}")
+        logger.error(f"Unexpected error setting auto mode offset: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
