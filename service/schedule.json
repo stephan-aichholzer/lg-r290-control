@@ -4,18 +4,18 @@
     {
       "days": ["monday", "tuesday", "wednesday", "thursday", "friday"],
       "periods": [
-        {"time": "05:00", "target_temp": 22.0},
+        {"time": "05:00", "target_temp": 22.2},
         {"time": "09:00", "target_temp": 21.5},
 	{"time": "17:00", "target_temp": 22.0},
-        {"time": "22:00", "target_temp": 21.0}
+        {"time": "22:00", "target_temp": 21.5}
       ]
     },
     {
       "days": ["saturday", "sunday"],
       "periods": [
-        {"time": "06:00", "target_temp": 22.2},
+        {"time": "05:00", "target_temp": 22.2},
 	{"time": "10:00", "target_temp": 22.0},
-        {"time": "23:00", "target_temp": 21.0}
+        {"time": "23:00", "target_temp": 21.5}
       ]
     }
   ]
