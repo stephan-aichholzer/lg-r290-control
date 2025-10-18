@@ -167,7 +167,14 @@ show_temperatures() {
 
             echo -e "  ${BOLD}Power:${NC}         $(if [ "$power" = "true" ]; then echo -e "${GREEN}ON${NC}"; else echo -e "${YELLOW}OFF${NC}"; fi)"
             if [ "$mode_setting" = "Auto" ] && [ "$auto_offset" != "0" ]; then
-                echo -e "  ${BOLD}Cycle:${NC}         ${mode} (LG setting: ${mode_setting} ${auto_offset:+${auto_offset}K})"
+                # Format offset with sign (e.g., +2K or -1K)
+                local offset_display=""
+                if [ "$auto_offset" -gt 0 ]; then
+                    offset_display="+${auto_offset}K"
+                else
+                    offset_display="${auto_offset}K"  # Already has minus sign
+                fi
+                echo -e "  ${BOLD}Cycle:${NC}         ${mode} (LG setting: ${mode_setting} ${offset_display})"
             else
                 echo -e "  ${BOLD}Cycle:${NC}         ${mode} (LG setting: ${mode_setting})"
             fi

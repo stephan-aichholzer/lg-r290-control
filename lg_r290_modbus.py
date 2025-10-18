@@ -82,6 +82,18 @@ def decode_temperature(value: int) -> float:
     return value / 10.0
 
 
+def decode_signed_int(value: int) -> int:
+    """
+    Decode signed 16-bit integer from Modbus register.
+
+    Converts unsigned 16-bit to signed (two's complement).
+    Example: 65535 = -1, 65534 = -2, 1 = 1
+    """
+    if value > 32767:
+        value = value - 65536
+    return value
+
+
 # ============================================================================
 # Core Modbus Functions
 # ============================================================================
@@ -259,7 +271,7 @@ async def read_all_registers(client: AsyncModbusTcpClient) -> Optional[Dict[str,
             'op_mode': holding_regs[HOLDING_OP_MODE],
             'control_method': holding_regs[HOLDING_CONTROL_METHOD],
             'target_temp': decode_temperature(holding_regs[HOLDING_TARGET_TEMP]),
-            'auto_mode_offset': holding_regs[HOLDING_AUTO_MODE_OFFSET],
+            'auto_mode_offset': decode_signed_int(holding_regs[HOLDING_AUTO_MODE_OFFSET]),
             'energy_state': holding_regs[HOLDING_ENERGY_STATE],
         }
 
