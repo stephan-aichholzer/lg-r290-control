@@ -99,8 +99,8 @@ async def update_prometheus_metrics():
 
                 # Status metrics
                 heatpump_power_state.set(1 if data.get('power_state') == 'ON' else 0)
-                heatpump_compressor_running.set(1 if data.get('operating_mode') == 2 else 0)  # 2=Heating
-                heatpump_water_pump_running.set(1 if data.get('power_state') == 'ON' else 0)
+                heatpump_compressor_running.set(1 if data.get('operating_mode') in [1, 2] else 0)  # 1=Defrost, 2=Heating
+                heatpump_water_pump_running.set(1 if data.get('operating_mode') in [1, 2] else 0)  # Running when compressor active
                 heatpump_operating_mode.set(data.get('operating_mode', 0))
                 heatpump_error_code.set(data.get('error_code', 0))
 
