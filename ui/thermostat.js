@@ -280,6 +280,10 @@ function adjustTemperature(delta) {
             setTimeout(updateStatus, 500);
         } catch (error) {
             console.error('✗ Failed to update temperature via API:', error);
+        } finally {
+            // Clear debounce timer to allow UI updates from external changes
+            debounceTimer = null;
+            console.log('Debounce timer cleared, UI updates enabled');
         }
     }, 2000); // 2 second debounce delay
 }
