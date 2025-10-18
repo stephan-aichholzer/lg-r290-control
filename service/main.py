@@ -213,7 +213,8 @@ class HeatPumpStatus(BaseModel):
     is_on: bool = Field(description="Heat pump power state (true=ON, false=OFF)")
     water_pump_running: bool = Field(description="Water circulation pump status")
     compressor_running: bool = Field(description="Compressor operational status")
-    operating_mode: str = Field(description="Current operating mode (Standby, Heating, Cooling)")
+    operating_mode: str = Field(description="Current operating mode (Standby, Heating, Cooling, Auto) - actual cycle state")
+    mode_setting: str = Field(description="LG mode setting (Cool, Heat, Auto) - HOLDING register 40001")
     target_temperature: float = Field(description="Target flow temperature setpoint in °C (20.0-60.0)")
     flow_temperature: float = Field(description="Actual flow temperature (water outlet) in °C")
     return_temperature: float = Field(description="Return temperature (water inlet) in °C")
@@ -358,12 +359,19 @@ async def get_status():
         with open(STATUS_FILE) as f:
             data = json.load(f)
 
-        # Map operating modes
+        # Map operating modes (INPUT 30002 - actual cycle state)
         mode_map = {
             0: "Standby",
             1: "Cooling",
             2: "Heating",
             3: "Auto"
+        }
+
+        # Map LG mode settings (HOLDING 40001 - user setting)
+        lg_mode_setting_map = {
+            0: "Cool",
+            3: "Auto",
+            4: "Heat"
         }
 
         # Map status.json format to API format
@@ -372,6 +380,7 @@ async def get_status():
             "water_pump_running": data['operating_mode'] in [1, 2],  # Running in Cooling/Heating
             "compressor_running": data['operating_mode'] in [1, 2],  # Running in Cooling/Heating
             "operating_mode": mode_map.get(data['operating_mode'], "Unknown"),
+            "mode_setting": lg_mode_setting_map.get(data['op_mode'], f"Unknown ({data['op_mode']})"),
             "target_temperature": data['target_temp'],
             "flow_temperature": data['flow_temp'],
             "return_temperature": data['return_temp'],

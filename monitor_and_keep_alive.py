@@ -87,10 +87,15 @@ def write_status_to_file(status: dict, file_path: Path):
 
 def format_status_line(status: dict) -> str:
     """Format status for console logging"""
-    mode_str = ODU_MODES.get(status['operating_mode'], f"Unknown ({status['operating_mode']})")
+    # Actual operating cycle (INPUT 30002)
+    cycle_str = ODU_MODES.get(status['operating_mode'], f"Unknown ({status['operating_mode']})")
+
+    # User-selected mode (HOLDING 40001)
+    user_modes = {0: "Cool", 3: "Auto", 4: "Heat"}
+    user_mode = user_modes.get(status['op_mode'], f"M{status['op_mode']}")
 
     return (
-        f"[{status['power_state']:3s}] {mode_str:8s} | "
+        f"[{status['power_state']:3s}] {cycle_str:8s}({user_mode:4s}) | "
         f"Target: {status['target_temp']:4.1f}°C | "
         f"Flow: {status['flow_temp']:5.1f}°C | "
         f"Return: {status['return_temp']:5.1f}°C | "
