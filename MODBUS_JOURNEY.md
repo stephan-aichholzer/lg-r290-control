@@ -61,21 +61,23 @@ Hours of research later: CH03 = "External Control Mode Active"
 
 ---
 
-## Chapter 3: The RMC SLAVE Discovery
+## Chapter 3: The RMC Red Herring
 
 Heat pump has an RMC (Remote Controller) setting buried in the touchscreen menu:
 - MASTER mode: RMC controls heat pump
-- SLAVE mode: Heat pump can accept external Modbus commands
+- SLAVE mode: Heat pump follows another RMC
 
-*"Ah! That must be it!"*
+*"Maybe this affects Modbus control?"*
 
-Set RMC to SLAVE mode.
+Changed RMC setting to different values.
 Sent Modbus commands.
 Heat pump turned on!
 
 **Victory!** 🎉
 
 ...for about 30 seconds. Then it shut down. 😐
+
+**Plot twist discovered later:** The RMC setting has NOTHING to do with Modbus control! It's only relevant when you have multiple RMC controllers in one installation. We changed it during debugging and assumed it mattered - classic debugging correlation error!
 
 ---
 
@@ -274,10 +276,13 @@ After extensive testing, these are **confirmed truths**:
 - 3 retries with exponential backoff handles collisions
 - <6% error rate, all recovered automatically
 
-### ✅ Fact 5: RMC Must Be in SLAVE Mode
-- Touchscreen setting: Installation Menu → RMC Setting → SLAVE
-- MASTER mode blocks external Modbus control
-- Required but not sufficient (you also need continuous polling!)
+### ❌ Myth: RMC Must Be in SLAVE Mode
+**Previously thought:** RMC setting must be SLAVE for Modbus control
+**Actually discovered:** RMC setting doesn't matter for Modbus!
+- MASTER vs SLAVE only relevant if you have 2 RMC controllers in one house
+- Modbus works fine regardless of RMC setting
+- Another red herring from the debugging process
+- We changed it during testing and assumed it mattered - it didn't!
 
 ---
 
@@ -346,26 +351,29 @@ Started with complex initialization sequences, registry dumps, and elaborate sta
 - Proper RS-485 wiring (A to A, B to B, twisted pair)
 
 **Configuration:**
-- RMC set to SLAVE mode
 - Device ID: 7 (or whatever your manual specifies)
 - Modbus TCP → RTU gateway at 9600 baud, 8N1
+- RMC setting: Doesn't matter! (MASTER or SLAVE, either works)
 
 **Software:**
 - Python 3.7+
 - pymodbus library (v3.x)
-- The three scripts above
+- Continuous polling daemon
 
-### Critical Settings
+### Critical Settings (Simplified!)
 
 ```python
-# MUST set these registers when turning ON:
-HOLDING_ENERGY_STATE = 9    # Register 40010 = 5 (ON-Command Step2)
-HOLDING_OP_MODE = 0         # Register 40001 = 4 (Heating)
+# Optional registers to set (not strictly required):
+HOLDING_OP_MODE = 0         # Register 40001 = 4 (Heating) or 3 (Auto)
 HOLDING_CONTROL_METHOD = 1  # Register 40002 = 0 (Water outlet)
 HOLDING_TARGET_TEMP = 2     # Register 40003 = temp * 10
 
-# MUST poll continuously:
-POLL_INTERVAL = 10  # seconds (5-10s recommended)
+# THE ONLY CRITICAL REQUIREMENT:
+POLL_INTERVAL = 10-30  # seconds - MUST poll continuously!
+
+# What's NOT needed (despite earlier assumptions):
+# HOLDING_ENERGY_STATE = 9  # Works fine at 0 (default)
+# RMC SLAVE mode            # Doesn't affect Modbus at all
 ```
 
 ### Testing Procedure
@@ -659,12 +667,15 @@ The real secret was never the Energy State register. It was always:
 
 Setting Energy State = 5 felt like progress during debugging because we were ALSO starting to poll continuously at that point. Classic correlation vs causation mistake!
 
-**The Real Requirements:**
-- ✅ RMC mode = SLAVE
+**The ONLY Real Requirement:**
 - ✅ Continuous Modbus polling (heartbeat)
-- ❌ Energy State register = Not actually needed!
 
-**Lesson 13:** Sometimes the "critical" thing you discovered was just a red herring. The simple solution (keep talking to it) was right all along.
+**What's NOT Required (Red Herrings):**
+- ❌ Energy State register = Not needed!
+- ❌ RMC SLAVE mode = Doesn't affect Modbus!
+- ❌ Special initialization sequence = Just start polling!
+
+**Lesson 13:** Sometimes the "critical" things you discovered were just red herrings. The simple solution (keep talking to it) was right all along. Everything else was debugging theater!
 
 ---
 
