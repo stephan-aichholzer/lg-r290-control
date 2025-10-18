@@ -539,6 +539,85 @@ This explains why heat pump can be in "Auto" mode but actively "Heating" - the u
 
 ---
 
+## Chapter 11.5: The Target Temperature Revelation
+
+*"Wait... the target temperature doesn't do anything in Auto mode?!"*
+
+After months of monitoring and testing, we discovered a critical detail about how the LG Therma V handles temperature control:
+
+**The Big Revelation:**
+
+When the heat pump is in **Auto mode** (register 40001 = 3), the **target temperature register (40003) is completely ignored!** 🤯
+
+**How Temperature Control Actually Works:**
+
+### Manual Mode (Heat/Cool):
+```
+Register 40001 = 4 (Heat) or 0 (Cool)
+Register 40003 = 380 (38.0°C) ← ACTIVE! Controls flow temperature
+Register 40005 = ±X ← Ignored
+
+Flow Temperature: Set directly by user via 40003
+```
+
+### Auto Mode:
+```
+Register 40001 = 3 (Auto)
+Register 40003 = 380 (38.0°C) ← IGNORED! Has no effect
+Register 40005 = +2K ← ACTIVE! Adjusts heating curve
+
+Flow Temperature: Calculated by LG algorithm
+  = f(outdoor_temp, heating_curve, auto_offset)
+```
+
+**Why This Matters:**
+
+We initially thought register 40003 was always important. But in Auto mode:
+- LG uses its **internal heating curve** (proprietary algorithm)
+- Outdoor temperature sensor (INPUT 30013) is the primary input
+- Auto mode offset (HOLDING 40005) fine-tunes the curve: ±5K
+- Target temperature (HOLDING 40003) sitting at 38.0°C? Doesn't matter!
+
+**UI Implementation:**
+
+Our UI correctly handles this by showing different controls:
+
+| Mode | Register 40001 | UI Display | User Controls |
+|------|----------------|------------|---------------|
+| Heat | 4 | "Target Water Temperature" slider | 33-50°C setpoint (40003) |
+| Cool | 0 | "Target Water Temperature" slider | 33-50°C setpoint (40003) |
+| Auto | 3 | "LG Auto Mode Offset" display | Read-only offset display (40005) |
+
+**Example Scenario:**
+```
+Current state:
+- Mode setting: Auto (40001 = 3)
+- Target temp: 38.0°C (40003 = 380) ← Meaningless
+- Auto offset: +2K (40005 = 2) ← This matters!
+- Outdoor temp: 4.3°C
+- Actual flow temp: 40.5°C ← Calculated by LG, not from 40003!
+
+If we change 40003 to 45.0°C → Nothing happens!
+If we change 40005 to +3K → Flow temp increases!
+```
+
+**Why We Missed This Initially:**
+
+During testing, we could set target temp and see flow temp change - but only because we were testing in **Heat mode**, not Auto mode! The confusion happened because:
+1. We tested temperature control → worked (we were in Heat mode)
+2. We switched to Auto mode → saw flow temp adjust itself
+3. We assumed target temp still mattered → it doesn't!
+
+**Lesson 9.5:** Don't assume all registers are always active. The **mode setting** determines which control registers are used. In Auto mode, the LG engineers want you to trust their algorithm - you can only nudge it with the offset!
+
+**The Wisdom:**
+
+LG's Auto mode essentially says: *"We've calculated the optimal heating curve based on physics and outdoor temperature. You can adjust it ±5K if you want, but we're not letting you set arbitrary flow temperatures - that's our job!"*
+
+It's actually clever engineering - prevents users from setting inefficient temperatures that would waste energy or reduce comfort.
+
+---
+
 ## Chapter 12: The Prometheus Journey
 
 *"Let's add monitoring!"*

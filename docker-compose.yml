@@ -28,6 +28,12 @@ services:
     container_name: lg_r290_ui
     ports:
       - "8080:80"
+    volumes:
+      # Mount static folder for hot-reload (no rebuild needed for HTML/CSS/JS changes)
+      # Clean separation: only static files exposed, Dockerfile and nginx.conf stay in ui/
+      - ./ui/static:/usr/share/nginx/html:ro
+      # Custom nginx config for security and cache control
+      - ./ui/nginx.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
       - heatpump-service
     networks:

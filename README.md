@@ -243,14 +243,33 @@ curl -X POST http://localhost:8002/ai-mode/reload-config
 
 Key registers implemented:
 
-| Type | Address | Description | Unit |
-|------|---------|-------------|------|
-| Coil | 00001 | Power ON/OFF | Boolean |
-| Discrete | 10004 | Compressor Status | Boolean |
-| Input | 30003 | Return Temp (Inlet - colder) | 0.1°C |
-| Input | 30004 | Flow Temp (Outlet - hotter) | 0.1°C |
-| Input | 30009 | Flow Rate | 0.1 LPM |
-| Holding | 40003 | Target Temperature | 0.1°C |
+| Type | Address | Description | Unit | Notes |
+|------|---------|-------------|------|-------|
+| Coil | 00001 | Power ON/OFF | Boolean | - |
+| Discrete | 10004 | Compressor Status | Boolean | - |
+| Input | 30003 | Return Temp (Inlet - colder) | 0.1°C | - |
+| Input | 30004 | Flow Temp (Outlet - hotter) | 0.1°C | - |
+| Input | 30009 | Flow Rate | 0.1 LPM | - |
+| Holding | 40001 | Operating Mode Setting | Enum | 0=Cool, 3=Auto, 4=Heat |
+| Holding | 40003 | Target Temperature | 0.1°C | **Only used in Heat/Cool mode** |
+| Holding | 40005 | Auto Mode Offset | 1K | **Only used in Auto mode** (±5K) |
+
+**Important: Temperature Control Modes**
+
+The heat pump has two distinct temperature control mechanisms:
+
+1. **Manual Mode (Heat/Cool)**: Register 40001 = 0 (Cool) or 4 (Heat)
+   - Flow temperature is controlled by **register 40003** (Target Temperature)
+   - User sets explicit target flow temperature (33-50°C)
+   - Register 40005 (Auto Mode Offset) is ignored
+
+2. **Auto Mode**: Register 40001 = 3 (Auto)
+   - Flow temperature is calculated by LG's internal heating curve
+   - Calculation uses outdoor temperature + **register 40005** (Auto Mode Offset)
+   - Register 40003 (Target Temperature) is **ignored/unused**
+   - Offset allows fine-tuning: -5K (colder) to +5K (warmer)
+
+The UI automatically switches between showing the temperature slider (Manual mode) and the offset display (Auto mode).
 
 See `LG_R290_register.pdf` for complete register documentation.
 

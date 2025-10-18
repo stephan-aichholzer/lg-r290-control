@@ -11,18 +11,10 @@
 </head>
 <body>
     <div class="container">
-        <header>
-            <div class="header-title">
-                <img src="heatpump.png" alt="Heat Pump" id="heatpump-logo" class="heatpump-logo">
-                <h1>LG R290 Heat Pump</h1>
-            </div>
-            <div id="connection-status" class="status-badge disconnected">Disconnected</div>
-        </header>
-
         <main>
             <!-- Left Panel: Power Control -->
             <section class="control-panel">
-                <h2>Power Control</h2>
+                <h2>LG R290 Heat Pump</h2>
                 <div class="power-switch-container">
                     <span class="switch-label">OFF</span>
                     <label class="switch">
@@ -43,6 +35,13 @@
                 </div>
                 <div class="ai-status-text" id="ai-status-text">Manual Control</div>
 
+                <div class="status-indicator">
+                    <span class="label">Connection</span>
+                    <div class="status-badge-compact" id="connection-status-compact">
+                        <span class="status-dot" id="connection-dot"></span>
+                        <span id="connection-status-text">Disconnected</span>
+                    </div>
+                </div>
                 <div class="status-indicator">
                     <span class="label">Heat Pump</span>
                     <div class="status-badge-compact">
@@ -66,14 +65,36 @@
                 </div>
             </section>
 
-            <!-- Temperature Setpoint -->
-            <section class="setpoint-control">
+            <!-- Temperature Setpoint (Manual Mode) -->
+            <section class="setpoint-control" id="manual-setpoint-section">
                 <h2>Target Water Temperature</h2>
                 <div class="slider-container">
                     <label for="temp-slider">
                         Setpoint: <span id="temp-slider-value">40.0</span>°C
                     </label>
                     <input type="range" id="temp-slider" min="33" max="50" step="0.5" value="40">
+                </div>
+            </section>
+
+            <!-- LG Auto Mode Offset (Auto Mode) -->
+            <section class="setpoint-control" id="lg-auto-offset-section" style="display: none;">
+                <h2>LG Auto Mode Offset</h2>
+                <div class="offset-display">
+                    <div class="offset-value" id="lg-offset-value">0°C</div>
+                    <div class="offset-scale">
+                        <span>-5</span>
+                        <span>-4</span>
+                        <span>-3</span>
+                        <span>-2</span>
+                        <span>-1</span>
+                        <span class="zero">0</span>
+                        <span>+1</span>
+                        <span>+2</span>
+                        <span>+3</span>
+                        <span>+4</span>
+                        <span>+5</span>
+                    </div>
+                    <div class="offset-note">Read-only - LG Auto mode active</div>
                 </div>
             </section>
 

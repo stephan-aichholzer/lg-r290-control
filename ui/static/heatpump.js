@@ -9,7 +9,8 @@ let pendingSliderValue = null;  // Track the value we're setting
 
 // UI Elements
 const elements = {
-    connectionStatus: document.getElementById('connection-status'),
+    connectionStatusText: document.getElementById('connection-status-text'),
+    connectionDot: document.getElementById('connection-dot'),
     powerStatus: document.getElementById('power-status'),
     powerDot: document.getElementById('power-dot'),
     compressorStatus: document.getElementById('compressor-status'),
@@ -20,8 +21,7 @@ const elements = {
     tempSliderValue: document.getElementById('temp-slider-value'),
     powerSwitch: document.getElementById('power-switch'),
     aiModeSwitch: document.getElementById('ai-mode-switch'),
-    aiStatusText: document.getElementById('ai-status-text'),
-    heatpumpLogo: document.getElementById('heatpump-logo')
+    aiStatusText: document.getElementById('ai-status-text')
 };
 
 /**
@@ -105,13 +105,27 @@ async function updateStatus() {
     try {
         const data = await apiRequest(`${CONFIG.HEATPUMP_API_URL}/status`);
         updateUI(data);
-        updateConnectionStatus(elements.connectionStatus, true);
+        updateConnectionStatusBadge(true);
 
         // Also fetch AI mode status periodically
         await fetchAIModeStatus();
     } catch (error) {
         console.error('Failed to fetch heat pump status:', error);
-        updateConnectionStatus(elements.connectionStatus, false);
+        updateConnectionStatusBadge(false);
+    }
+}
+
+/**
+ * Update connection status badge (dot + text)
+ * @param {boolean} connected - Connection state
+ */
+function updateConnectionStatusBadge(connected) {
+    if (connected) {
+        elements.connectionStatusText.textContent = 'Connected';
+        elements.connectionDot.classList.add('on');
+    } else {
+        elements.connectionStatusText.textContent = 'Disconnected';
+        elements.connectionDot.classList.remove('on');
     }
 }
 
@@ -149,13 +163,6 @@ function updateUI(data) {
         elements.compressorDot.classList.remove('on');
     }
 
-    // Rotate heat pump logo when compressor is running
-    if (data.compressor_running && !elements.heatpumpLogo.classList.contains('running')) {
-        elements.heatpumpLogo.classList.add('running');
-    } else if (!data.compressor_running && elements.heatpumpLogo.classList.contains('running')) {
-        elements.heatpumpLogo.classList.remove('running');
-    }
-
     // Update slider to reflect actual target temperature from device
     if (data.target_temperature !== undefined && data.target_temperature !== null) {
         const currentSliderValue = parseFloat(elements.tempSlider.value);
@@ -184,6 +191,58 @@ function updateUI(data) {
         } else {
             console.log(`Slider update blocked - userInteracting: ${userInteractingWithSlider}, pending: ${pendingSliderValue}`);
         }
+    }
+
+    // Toggle Manual/Auto mode sections based on mode_setting
+    // IMPORTANT: The heat pump has two different temperature control mechanisms:
+    //
+    // 1. MANUAL MODE (Heat/Cool) - Register 40001 = 0 (Cool) or 4 (Heat)
+    //    - User sets explicit target flow temperature via register 40003 (33-50°C)
+    //    - Display: Temperature slider for direct control
+    //    - Register 40005 (auto offset) is ignored
+    //
+    // 2. AUTO MODE - Register 40001 = 3 (Auto)
+    //    - LG's internal heating curve calculates optimal flow temperature
+    //    - Based on outdoor temp (INPUT 30013) + heating curve + offset (HOLDING 40005)
+    //    - Register 40003 (target temperature) is IGNORED in this mode!
+    //    - Display: Auto offset adjustment (±5K) - read-only for now
+    //
+    const modeSetting = data.mode_setting || "";
+    const manualSection = document.getElementById('manual-setpoint-section');
+    const lgAutoSection = document.getElementById('lg-auto-offset-section');
+
+    if (modeSetting === "Auto") {
+        // LG Auto mode - hide manual slider (register 40003 unused), show offset (register 40005 active)
+        if (manualSection) manualSection.style.display = 'none';
+        if (lgAutoSection) lgAutoSection.style.display = 'block';
+
+        // Update offset value (register 40005: -5 to +5°C)
+        const offsetValue = data.auto_mode_offset || 0;
+        const offsetElement = document.getElementById('lg-offset-value');
+        if (offsetElement) {
+            offsetElement.textContent = offsetValue >= 0 ? '+' + offsetValue + '°C' : offsetValue + '°C';
+        }
+
+        // Highlight the active offset button
+        const offsetButtons = document.querySelectorAll('.offset-scale span');
+        // Convert NodeList to Array for older browser compatibility
+        const buttonsArray = Array.prototype.slice.call(offsetButtons);
+        for (let i = 0; i < buttonsArray.length; i++) {
+            const button = buttonsArray[i];
+            const buttonValue = parseInt(button.textContent);
+            if (buttonValue === offsetValue) {
+                button.classList.add('active');
+            } else {
+                button.classList.remove('active');
+            }
+        }
+
+        console.log('LG Auto mode active, offset: ' + offsetValue + '°C (register 40003 ignored)');
+    } else {
+        // Manual mode (Heat or Cool) - show manual slider (register 40003 active), hide offset (register 40005 unused)
+        if (manualSection) manualSection.style.display = 'block';
+        if (lgAutoSection) lgAutoSection.style.display = 'none';
+        console.log('Manual mode active (' + modeSetting + '), using target temperature from register 40003');
     }
 
     // Flow temperature - update badge display only if value changed

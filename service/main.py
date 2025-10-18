@@ -215,8 +215,8 @@ class HeatPumpStatus(BaseModel):
     compressor_running: bool = Field(description="Compressor operational status")
     operating_mode: str = Field(description="Current operating mode (Standby, Heating, Cooling, Auto) - actual cycle state")
     mode_setting: str = Field(description="LG mode setting (Cool, Heat, Auto) - HOLDING register 40001")
-    target_temperature: float = Field(description="Target flow temperature setpoint in °C (20.0-60.0)")
-    auto_mode_offset: int = Field(description="LG Auto mode temperature offset in K (-5 to +5) - only used when mode_setting is Auto")
+    target_temperature: float = Field(description="Target flow temperature setpoint in °C (20.0-60.0) - ONLY USED in Heat/Cool modes, IGNORED in Auto mode")
+    auto_mode_offset: int = Field(description="LG Auto mode temperature offset in K (-5 to +5) - ONLY USED in Auto mode, ignored in Heat/Cool modes")
     flow_temperature: float = Field(description="Actual flow temperature (water outlet) in °C")
     return_temperature: float = Field(description="Return temperature (water inlet) in °C")
     flow_rate: float = Field(description="Water flow rate in liters per minute (LPM)")
@@ -467,12 +467,14 @@ async def set_power_endpoint(control: PowerControl):
 
     **Valid Range**: 20.0°C - 60.0°C
 
-    **Manual Mode**: Temperature is set directly and maintained.
+    **IMPORTANT - Mode Behavior:**
 
-    **AI Mode**: This setting will be overridden by automatic calculations based on:
-    - Outdoor temperature
-    - Target room temperature
-    - Selected heating curve
+    - **Heat/Cool Mode** (register 40001 = 0 or 4): This setting ACTIVELY controls flow temperature
+    - **Auto Mode** (register 40001 = 3): This setting is IGNORED by LG's internal heating curve
+      - In Auto mode, use `/auto-mode-offset` endpoint instead to adjust the offset (±5K)
+      - LG calculates flow temp based on: outdoor_temp + heating_curve + offset
+
+    **AI Mode Note**: This setting will also be overridden by our AI Mode if enabled.
 
     **Effect**: Writes to Modbus holding register 40003 (Target Temperature Circuit 1).
     """,
@@ -509,8 +511,13 @@ async def set_temperature_setpoint_endpoint(setpoint: TemperatureSetpoint):
 
     **Valid Range**: -5 to +5 Kelvin
 
-    **When Active**: Only affects heat pump when LG mode setting (HOLDING 40001) is set to Auto (3).
-    In manual Heat or Cool modes, this offset is ignored.
+    **IMPORTANT - Only Active in Auto Mode:**
+    - **Auto Mode** (register 40001 = 3): This offset ACTIVELY adjusts the heating curve
+      - LG calculates: flow_temp = f(outdoor_temp, heating_curve) + offset
+      - Positive offset (+2K): Increases flow temperature (warmer)
+      - Negative offset (-2K): Decreases flow temperature (cooler)
+    - **Heat/Cool Mode** (register 40001 = 0 or 4): This setting is IGNORED
+      - Use `/setpoint` endpoint to control target temperature instead
 
     **Use Case**: Fine-tune the automatic temperature calculation without switching to manual control.
     For example, if LG Auto mode calculates 35°C flow temperature but rooms feel too cold,

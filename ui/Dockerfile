@@ -1,10 +1,7 @@
 FROM nginx:alpine
 
-# Copy static files to nginx html directory
-COPY index.html /usr/share/nginx/html/
-COPY style.css /usr/share/nginx/html/
-COPY *.js /usr/share/nginx/html/
-COPY heatpump.png /usr/share/nginx/html/
+# No COPY needed - files are mounted as volumes in docker-compose.yml
+# This keeps the image small and allows for hot-reload during development
 
 # Expose port 80
 EXPOSE 80
