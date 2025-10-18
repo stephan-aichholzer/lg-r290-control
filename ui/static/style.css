@@ -2,6 +2,10 @@
     /* Main accent color - Orange theme */
     --accent-color: #f97316;
     --accent-color-rgb: 249, 115, 22;
+
+    /* Blue color for negative offset values */
+    --blue-color: #3b82f6;
+    --blue-color-rgb: 59, 130, 246;
 }
 
 * {
@@ -278,7 +282,7 @@ input:checked + .slider:before {
     }
 
     .setpoint-control h2 {
-        font-size: 11px;
+        font-size: 13px;
         margin-bottom: 4px;
         line-height: 1.2;
     }
@@ -543,6 +547,11 @@ input:checked + .slider:before {
     text-align: center;
 }
 
+.offset-value.negative {
+    color: var(--blue-color);
+    text-shadow: 0 0 10px rgba(var(--blue-color-rgb), 0.4);
+}
+
 .offset-scale {
     display: flex;
     gap: 10px;
@@ -584,12 +593,19 @@ input:checked + .slider:before {
     box-shadow: 0 0 8px rgba(var(--accent-color-rgb), 0.5);
 }
 
-/* Active offset button (current value) */
+/* Active offset button (current value) - positive/zero values are orange */
 .offset-scale span.active {
     background: var(--accent-color);
     color: #ffffff;
     border-color: var(--accent-color);
     box-shadow: 0 0 12px rgba(var(--accent-color-rgb), 0.6);
+}
+
+/* Active offset button with negative value - blue color */
+.offset-scale span.active.negative {
+    background: var(--blue-color);
+    border-color: var(--blue-color);
+    box-shadow: 0 0 12px rgba(var(--blue-color-rgb), 0.6);
 }
 
 .offset-note {

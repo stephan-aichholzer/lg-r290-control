@@ -221,6 +221,12 @@ function updateUI(data) {
         const offsetElement = document.getElementById('lg-offset-value');
         if (offsetElement) {
             offsetElement.textContent = offsetValue >= 0 ? '+' + offsetValue + '°C' : offsetValue + '°C';
+            // Add 'negative' class for blue color if value is negative
+            if (offsetValue < 0) {
+                offsetElement.classList.add('negative');
+            } else {
+                offsetElement.classList.remove('negative');
+            }
         }
 
         // Highlight the active offset button
@@ -232,8 +238,15 @@ function updateUI(data) {
             const buttonValue = parseInt(button.textContent);
             if (buttonValue === offsetValue) {
                 button.classList.add('active');
+                // Add 'negative' class for blue color if value is negative
+                if (buttonValue < 0) {
+                    button.classList.add('negative');
+                } else {
+                    button.classList.remove('negative');
+                }
             } else {
                 button.classList.remove('active');
+                button.classList.remove('negative');
             }
         }
 
