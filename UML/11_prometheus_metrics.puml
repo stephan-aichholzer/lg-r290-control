@@ -1,0 +1,246 @@
+@startuml Prometheus Metrics Integration
+title Prometheus Metrics Integration - Heat Pump Monitoring
+
+participant "Monitor\nDaemon" as Monitor
+participant "status.json\n(shared file)" as StatusFile
+participant "Metrics\nUpdater\n(background task)" as Updater
+participant "Prometheus\nGauges" as Gauges
+participant "Prometheus\nServer" as Prometheus
+participant "Grafana" as Grafana
+actor "User" as User
+
+== Background Monitoring Loop (30s interval) ==
+
+loop Every 30 seconds
+    Monitor -> Monitor: Read Modbus registers\n(via lg_r290_modbus.py)
+    activate Monitor
+
+    Monitor -> Monitor: Parse register values:\n- Temperatures (flow, return, outdoor)\n- Operating mode\n- Power state\n- Error codes
+
+    Monitor -> StatusFile: Atomic write:\nstatus.json + timestamp
+    activate StatusFile
+
+    StatusFile --> Monitor: File updated
+    deactivate StatusFile
+
+    deactivate Monitor
+end
+
+note right of StatusFile
+  status.json contains:
+  {
+    "power_state": "ON",
+    "operating_mode": 2,  // Heating
+    "flow_temp": 39.2,
+    "return_temp": 39.6,
+    "outdoor_temp": 11.3,
+    "target_temp": 38.0,
+    "error_code": 0,
+    "timestamp": "2025-10-18T13:45:00"
+  }
+end note
+
+== Prometheus Metrics Update Loop (30s interval) ==
+
+loop Every 30 seconds
+    Updater -> StatusFile: Read status.json
+    activate Updater
+    activate StatusFile
+
+    StatusFile --> Updater: JSON data
+    deactivate StatusFile
+
+    Updater -> Updater: Parse values
+
+    Updater -> Gauges: heatpump_flow_temperature_celsius.set(39.2)
+    activate Gauges
+    Gauges --> Updater: Updated
+    deactivate Gauges
+
+    Updater -> Gauges: heatpump_return_temperature_celsius.set(39.6)
+    activate Gauges
+    Gauges --> Updater: Updated
+    deactivate Gauges
+
+    Updater -> Gauges: heatpump_outdoor_temperature_celsius.set(11.3)
+    activate Gauges
+    Gauges --> Updater: Updated
+    deactivate Gauges
+
+    Updater -> Gauges: heatpump_target_temperature_celsius.set(38.0)
+    activate Gauges
+    Gauges --> Updater: Updated
+    deactivate Gauges
+
+    Updater -> Gauges: heatpump_temperature_delta_celsius.set(-0.4)
+    activate Gauges
+    note right: Calculated: flow - return
+    Gauges --> Updater: Updated
+    deactivate Gauges
+
+    Updater -> Gauges: heatpump_power_state.set(1)\nheatpump_compressor_running.set(1)\nheatpump_water_pump_running.set(1)
+    activate Gauges
+    note right
+      Binary metrics:
+      - 0 = OFF/False
+      - 1 = ON/True
+
+      Compressor/pump running when:
+      operating_mode in [1, 2]
+      (1=Defrost, 2=Heating)
+    end note
+    Gauges --> Updater: Updated
+    deactivate Gauges
+
+    Updater -> Gauges: heatpump_operating_mode.set(2)\nheatpump_error_code.set(0)
+    activate Gauges
+    Gauges --> Updater: Updated
+    deactivate Gauges
+
+    deactivate Updater
+end
+
+== Prometheus Scraping (30s interval) ==
+
+loop Every 30 seconds
+    Prometheus -> Gauges: HTTP GET /metrics
+    activate Prometheus
+    activate Gauges
+
+    Gauges --> Prometheus: Prometheus text format:\n# TYPE heatpump_flow_temperature_celsius gauge\nheatpump_flow_temperature_celsius 39.2\n# TYPE heatpump_return_temperature_celsius gauge\nheatpump_return_temperature_celsius 39.6\n...
+    deactivate Gauges
+
+    Prometheus -> Prometheus: Store time-series data
+    deactivate Prometheus
+end
+
+note right of Prometheus
+  **Scrape Configuration:**
+  (prometheus.yml)
+
+  scrape_configs:
+    - job_name: 'heatpump'
+      static_configs:
+        - targets: ['lg_r290_service:8000']
+      metrics_path: '/metrics'
+      scrape_interval: 30s
+
+  **Docker Networking:**
+  - Prometheus joins modbus_default
+  - lg_r290_service joins modbus_default
+  - DNS: lg_r290_service resolves to container IP
+end note
+
+== Grafana Visualization ==
+
+User -> Grafana: Open Grafana dashboard\nhttp://192.168.2.11:3000
+activate Grafana
+
+Grafana -> Prometheus: PromQL query:\nrate(heatpump_flow_temperature_celsius[5m])
+activate Prometheus
+
+Prometheus --> Grafana: Time-series data\n[(timestamp, value), ...]
+deactivate Prometheus
+
+Grafana -> Grafana: Render graphs:\n- Temperature trends\n- ΔT (flow-return)\n- Compressor cycles\n- Power state history
+
+Grafana --> User: Display dashboard
+deactivate Grafana
+
+note right of User
+  **Dashboard Panels:**
+
+  1. Flow Temperature (°C)
+     - Current value gauge
+     - Historical trend line
+
+  2. Return Temperature (°C)
+     - Current value gauge
+     - Historical trend line
+
+  3. Outdoor Temperature (°C)
+     - Weather correlation
+     - Historical trend
+
+  4. Temperature Delta (ΔT)
+     - flow - return
+     - Heat transfer indicator
+
+  5. Compressor State
+     - Binary: ON/OFF
+     - Cycle frequency
+
+  6. Power Consumption Correlation
+     - Combine with WAGO meter
+     - Efficiency analysis
+end note
+
+== Metric Definitions ==
+
+note over Gauges
+  **Temperature Metrics:**
+  - heatpump_flow_temperature_celsius
+    Flow temperature (water outlet)
+
+  - heatpump_return_temperature_celsius
+    Return temperature (water inlet)
+
+  - heatpump_outdoor_temperature_celsius
+    Outdoor air temperature (from heat pump sensor)
+
+  - heatpump_target_temperature_celsius
+    Target temperature setpoint
+
+  - heatpump_temperature_delta_celsius
+    Calculated delta (flow - return)
+
+  **Status Metrics:**
+  - heatpump_power_state (0=OFF, 1=ON)
+    Heat pump power state
+
+  - heatpump_compressor_running (0=OFF, 1=ON)
+    Compressor operational status
+
+  - heatpump_water_pump_running (0=OFF, 1=ON)
+    Water circulation pump status
+
+  - heatpump_operating_mode
+    0=Standby, 1=Cooling, 2=Heating, 3=Auto
+
+  - heatpump_error_code
+    Error code (0 = no error)
+end note
+
+== Integration with Existing Monitoring ==
+
+note over Prometheus
+  **Combined Monitoring Stack:**
+
+  Already exists:
+  - WAGO energy meter (via modbus_exporter)
+    • Power consumption (W)
+    • Energy total (kWh)
+    • Voltage, current, power factor
+
+  New addition:
+  - LG R290 heat pump metrics
+    • Temperatures
+    • Operating states
+    • Cycles
+
+  **Cross-correlation Queries:**
+
+  Efficiency calculation:
+  COP = heat_delivered / power_consumed
+
+  Where:
+  - heat_delivered = flow_rate × ΔT × specific_heat
+  - power_consumed = wago_power_w
+
+  Cycle analysis:
+  - Compare compressor ON time vs power draw
+  - Analyze temperature setpoint vs actual
+  - Track outdoor temp vs indoor temp relationship
+end note
+
+@enduml

@@ -62,8 +62,10 @@ package "Local Network (192.168.2.0/24)" {
 
 ' Internal Docker connections
 Service .down.> NetThermo : << joins external network >>
+Service .down.> NetModbus : << joins external network >>
 ExtNet .up.> NetThermo : references
 Service ..> Thermostat : HTTP: iot-api:8000\n(Docker DNS)
+Prometheus ..> Service : HTTP: lg_r290_service:8000/metrics\n(Docker DNS)
 
 ' Cross-stack connections
 Prometheus .up.> NetThermo : << joins external network >>
@@ -93,9 +95,14 @@ note right of Service
      - Container name: iot-api
      - Port: 8000 (HTTP)
 
-  **Why both networks needed:**
+  3. modbus_default (external)
+     - Expose /metrics for Prometheus
+     - Container name: lg_r290_service
+     - Port: 8000 (HTTP /metrics endpoint)
+
+  **Why multiple networks needed:**
   - Can't use host network (breaks mock access)
-  - Must join external network for thermostat
+  - Must join external networks for integration
   - Docker DNS resolves container names
 end note
 

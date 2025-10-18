@@ -15,6 +15,8 @@ This folder contains PlantUML sequence diagrams documenting all major use cases 
 | **07_error_handling.puml** | Error scenarios and recovery strategies | AI Controller, All Services |
 | **08_network_architecture.puml** | Docker network topology and communication paths | All Services, Networks |
 | **09_scheduler_control.puml** | Time-based automatic temperature scheduling | Scheduler, Thermostat API, schedule.json |
+| **10_lg_auto_mode_offset.puml** | LG Auto mode temperature offset adjustment (±5K) | User, UI, API, Modbus, Heat Pump |
+| **11_prometheus_metrics.puml** | Prometheus metrics integration and Grafana monitoring | Monitor Daemon, Prometheus, Grafana |
 
 ## Use Cases Covered
 
@@ -148,6 +150,47 @@ This folder contains PlantUML sequence diagrams documenting all major use cases 
 - Deduplication to prevent multiple triggers per minute
 - Vienna timezone with automatic DST handling
 
+### 10. LG Auto Mode Offset (`10_lg_auto_mode_offset.puml`)
+**Scenario**: Fine-tune LG's automatic temperature calculation without manual mode
+- User adjusts offset via UI slider (+/- buttons)
+- Write to Modbus holding register 40005 (±5K range)
+- Two's complement encoding for negative values
+- Only active when LG mode (40001) = Auto (3)
+- Monitor daemon reads offset every 30 seconds
+- UI displays "Auto +2K" or "Auto -1K"
+
+**Key Endpoints**:
+- `POST /auto-mode-offset` - Set offset (-5 to +5K)
+- `GET /status` - Includes auto_mode_offset field
+
+**How LG Auto Mode Works**:
+- LG calculates base flow temp from internal heating curve
+- Applies offset: final_temp = base_temp + offset
+- Example: 40°C base + (-1K) = 39°C final
+- Ignored in manual Heat/Cool modes
+
+### 11. Prometheus Metrics Integration (`11_prometheus_metrics.puml`)
+**Scenario**: Export heat pump metrics to Prometheus for Grafana visualization
+- Monitor daemon writes status.json every 30 seconds
+- Background metrics updater reads status.json
+- Updates Prometheus Gauges (temperature, power, state)
+- Prometheus scrapes /metrics endpoint every 30s
+- Grafana visualizes time-series data
+- Cross-correlation with WAGO energy meter
+
+**Key Endpoints**:
+- `GET /metrics` - Prometheus exposition format
+
+**Metrics Exported**:
+- Temperature metrics (flow, return, outdoor, target, delta)
+- Status metrics (power, compressor, pump, mode, errors)
+- All metrics prefixed with `heatpump_`
+
+**Network Integration**:
+- lg_r290_service joins modbus_default network
+- Prometheus uses Docker DNS: lg_r290_service:8000
+- No port mapping needed (internal network)
+
 ## How to View Diagrams
 
 ### Option 1: PlantUML Online Server
@@ -223,6 +266,6 @@ docker run -v $(pwd)/UML:/data plantuml/plantuml:latest -tpng /data/*.puml
 
 ## Version
 
-**Diagrams Version**: v0.8.1
-**Last Updated**: 2025-10-10
-**Corresponds to**: AI Mode with thermostat integration
+**Diagrams Version**: v0.9.0
+**Last Updated**: 2025-10-18
+**Corresponds to**: Prometheus metrics integration and LG Auto mode offset support

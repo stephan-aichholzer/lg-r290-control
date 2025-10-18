@@ -1,0 +1,184 @@
+@startuml LG Auto Mode - Temperature Offset Adjustment
+title LG Auto Mode - Temperature Offset Control
+
+actor User
+participant "Web UI" as UI
+participant "FastAPI\nService" as API
+participant "lg_r290_modbus.py" as Modbus
+participant "Modbus\nGateway" as Gateway
+participant "LG R290\nHeat Pump" as HeatPump
+
+== Initial Status Display ==
+
+User -> UI: Load heat pump control page
+activate UI
+
+UI -> API: GET /status
+activate API
+
+API -> API: Read status.json\n(cached data)
+
+API --> UI: 200 OK\n{\n  "mode_setting": "Auto",\n  "auto_mode_offset": 2,\n  "operating_mode": "Heating",\n  ...\n}
+deactivate API
+
+UI -> UI: Display mode: "Auto +2K"\nShow offset slider
+
+UI --> User: Show current state
+deactivate UI
+
+note right of UI
+  LG Auto Mode uses register 40005
+  as a ±5K offset to fine-tune the
+  automatically calculated flow temp
+  without switching to manual control
+end note
+
+== User Adjusts Auto Mode Offset ==
+
+User -> UI: Click +/- buttons or\nchange offset slider\n(e.g., +2K → -1K)
+activate UI
+
+UI -> UI: Optimistic update:\nDisplay "Auto -1K"
+
+UI -> API: POST /auto-mode-offset\n{\n  "offset": -1\n}
+activate API
+
+alt Read-Only Mode Enabled (Current State)
+    API -> API: Validate: -5 ≤ offset ≤ 5
+
+    API --> UI: 500 Failed\n"read-only mode"
+    deactivate API
+
+    UI -> UI: Show error message\nRevert to previous value
+
+    UI --> User: "Cannot set offset\n(read-only mode)"
+    deactivate UI
+
+else Write Mode Enabled (Future)
+    API -> API: Validate: -5 ≤ offset ≤ 5
+
+    API -> Modbus: set_auto_mode_offset(client, -1)
+    activate Modbus
+
+    Modbus -> Modbus: Convert to register value:\nValue = -1 (stored as 65535\nin two's complement)
+
+    Modbus -> Gateway: Write holding register 40005\nValue: 65535 (0xFFFF = -1)
+    activate Gateway
+
+    Gateway -> HeatPump: Modbus Write:\nFunction: 0x06 (Write Single Register)\nRegister: 40005\nValue: 65535
+    activate HeatPump
+
+    HeatPump -> HeatPump: Store offset: -1K\n(two's complement)
+
+    HeatPump --> Gateway: ACK
+    deactivate HeatPump
+
+    Gateway --> Modbus: Success
+    deactivate Gateway
+
+    Modbus --> API: True (success)
+    deactivate Modbus
+
+    API --> UI: 200 OK\n{\n  "status": "success",\n  "auto_mode_offset": -1\n}
+    deactivate API
+
+    UI --> User: "Offset updated to -1K"
+    deactivate UI
+end
+
+== Background Polling Updates Status ==
+
+note over API, HeatPump
+  Monitor daemon runs independently
+  every 30 seconds, reading all registers
+end note
+
+loop Every 30 seconds
+    API -> Modbus: read_all_registers(client)
+    activate API
+    activate Modbus
+
+    Modbus -> Gateway: Read holding 40001-40010
+    activate Gateway
+
+    Gateway -> HeatPump: Modbus Read:\nFunction: 0x03 (Read Holding)\nStart: 40001, Count: 10
+    activate HeatPump
+
+    HeatPump --> Gateway: Registers:\n40001 (op_mode): 3 (Auto)\n40005 (offset): 65535 (0xFFFF)
+    deactivate HeatPump
+
+    Gateway --> Modbus: Raw values
+    deactivate Gateway
+
+    Modbus -> Modbus: decode_signed_int(65535)\n→ -1 (two's complement)
+
+    Modbus --> API: {\n  "op_mode": 3,\n  "auto_mode_offset": -1,\n  ...\n}
+    deactivate Modbus
+
+    API -> API: Write to status.json\n(atomic file update)
+    deactivate API
+end
+
+== UI Polling (Every 10 seconds) ==
+
+loop Every 10 seconds
+    UI -> API: GET /status
+    activate UI
+    activate API
+
+    API -> API: Read status.json
+
+    API --> UI: 200 OK\n{\n  "mode_setting": "Auto",\n  "auto_mode_offset": -1,\n  ...\n}
+    deactivate API
+
+    UI -> UI: Update display:\n"Cycle: Heating (LG: Auto -1K)"
+
+    UI --> User: Show updated offset
+    deactivate UI
+end
+
+== How LG Auto Mode Works ==
+
+note over HeatPump
+  **LG Auto Mode Logic:**
+
+  1. LG calculates base flow temp
+     using internal heating curve
+     based on outdoor temperature
+
+  2. Apply offset from 40005:
+     final_temp = base_temp + offset
+
+  Example:
+  - Outdoor: 5°C
+  - LG base calculation: 40°C
+  - Offset (40005): -1K
+  - Final flow temp: 39°C
+
+  **When offset is ignored:**
+  - Manual Heat mode (40001=4)
+  - Manual Cool mode (40001=0)
+  - Only active in Auto mode (40001=3)
+end note
+
+== Register Details ==
+
+note over Modbus, HeatPump
+  **HOLDING Register 40005:**
+  - Name: Auto Mode Switch Value Circuit 1
+  - Type: Signed 16-bit integer
+  - Range: -5 to +5 Kelvin
+  - Encoding: Two's complement
+  - Example values:
+    •  2 → stored as 0x0002 (2)
+    •  0 → stored as 0x0000 (0)
+    • -1 → stored as 0xFFFF (65535)
+    • -5 → stored as 0xFFFB (65531)
+
+  **Related Registers:**
+  - 40001: Operating Mode (0=Cool, 3=Auto, 4=Heat)
+  - 40003: Target Temperature (manual mode)
+  - 40005: Auto Offset (auto mode only)
+end note
+
+@enduml
