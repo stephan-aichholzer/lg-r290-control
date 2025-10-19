@@ -40,5 +40,20 @@
     "adjustment_threshold": 2,
     "hysteresis_outdoor": 1,
     "default_target_room_temp": 22
+  },
+  "lg_auto_offset": {
+    "description": "LG Auto Mode offset adjustment based on thermostat mode (ECO/AUTO/ON/OFF)",
+    "enabled": true,
+    "thermostat_mode_mappings": {
+      "ECO": -3,
+      "AUTO": 0,
+      "ON": 0,
+      "OFF": -5
+    },
+    "settings": {
+      "default_offset": 0,
+      "min_offset": -5,
+      "max_offset": 5
+    }
   }
 }

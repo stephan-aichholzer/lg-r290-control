@@ -35,6 +35,7 @@ export async function init() {
 
     initEventListeners();
     await initializeDefaults();
+    await syncLgOffsetOnStartup();
     // Do immediate status update to show current state
     await updateStatus();
     startAutoUpdate();
@@ -66,6 +67,29 @@ async function initializeDefaults() {
         console.log('Thermostat defaults applied:', result);
     } catch (error) {
         console.error('Failed to set thermostat defaults:', error);
+        // Don't block initialization if this fails
+    }
+}
+
+/**
+ * Sync LG Auto offset on startup based on current thermostat mode
+ */
+async function syncLgOffsetOnStartup() {
+    try {
+        console.log('Syncing LG Auto offset with current thermostat mode...');
+
+        // Get current thermostat mode
+        const currentConfig = await apiRequest(`${CONFIG.THERMOSTAT_API_URL}/api/v1/thermostat/config`);
+        const currentMode = currentConfig.mode;
+
+        console.log(`Current thermostat mode: ${currentMode}`);
+
+        // Apply the corresponding LG offset
+        await applyLgAutoOffset(currentMode);
+
+        console.log('LG Auto offset synced on startup');
+    } catch (error) {
+        console.error('Failed to sync LG Auto offset on startup:', error);
         // Don't block initialization if this fails
     }
 }
@@ -212,10 +236,52 @@ async function setMode(mode) {
         });
 
         console.log('Thermostat mode set:', result);
+
+        // Also set LG Auto mode offset based on thermostat mode
+        await applyLgAutoOffset(mode);
+
         setTimeout(updateStatus, 500);
     } catch (error) {
         console.error('Failed to set thermostat mode:', error);
         alert('Failed to set thermostat mode');
+    }
+}
+
+/**
+ * Apply LG Auto mode offset based on thermostat mode
+ * @param {string} mode - Thermostat mode (ECO, AUTO, ON, OFF)
+ */
+async function applyLgAutoOffset(mode) {
+    try {
+        // Get LG offset configuration
+        const offsetConfig = await apiRequest(`${CONFIG.HEATPUMP_API_URL}/lg-auto-offset-config`);
+
+        if (!offsetConfig.enabled) {
+            console.log('LG Auto offset adjustment disabled in config');
+            return;
+        }
+
+        // Get offset value for this mode
+        const offset = offsetConfig.thermostat_mode_mappings[mode];
+
+        if (offset === undefined) {
+            console.warn(`No LG offset mapping found for mode: ${mode}`);
+            return;
+        }
+
+        // Set the LG Auto mode offset
+        console.log(`Setting LG Auto offset to ${offset}K for thermostat mode ${mode}`);
+
+        const result = await apiRequest(`${CONFIG.HEATPUMP_API_URL}/auto-mode-offset`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ offset: offset })
+        });
+
+        console.log(`✓ LG Auto offset set to ${offset}K:`, result);
+    } catch (error) {
+        console.error('Failed to set LG Auto offset:', error);
+        // Don't alert - this is a background operation
     }
 }
 

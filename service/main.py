@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Optional
 from contextlib import asynccontextmanager
 
+import httpx
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -110,6 +111,63 @@ async def update_prometheus_metrics():
         await asyncio.sleep(30)  # Update every 30s
 
 
+async def sync_lg_offset_on_startup(thermostat_api_url: str):
+    """
+    Sync LG Auto mode offset with current thermostat mode on service startup.
+
+    This ensures that after a power outage/reboot, the LG offset matches the
+    thermostat mode without requiring a browser to be open.
+    """
+    try:
+        # Wait a few seconds for services to stabilize
+        await asyncio.sleep(5)
+
+        logger.info("Reading thermostat mode for LG offset sync...")
+
+        # Get current thermostat mode
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(f"{thermostat_api_url}/api/v1/thermostat/config")
+            response.raise_for_status()
+            thermostat_config = response.json()
+            current_mode = thermostat_config.get('mode', 'AUTO')
+
+        logger.info(f"Current thermostat mode: {current_mode}")
+
+        # Load LG offset configuration
+        config_file = Path("/app/heating_curve_config.json")
+        if not config_file.exists():
+            logger.warning("heating_curve_config.json not found - skipping LG offset sync")
+            return
+
+        with open(config_file) as f:
+            config = json.load(f)
+
+        lg_offset_config = config.get('lg_auto_offset', {})
+
+        if not lg_offset_config.get('enabled', False):
+            logger.info("LG Auto offset sync disabled in config")
+            return
+
+        # Get offset value for current mode
+        mode_mappings = lg_offset_config.get('thermostat_mode_mappings', {})
+        target_offset = mode_mappings.get(current_mode, 0)
+
+        logger.info(f"Setting LG Auto offset to {target_offset:+d}K for mode {current_mode}")
+
+        # Set the offset
+        if modbus_client:
+            success = await set_auto_mode_offset(modbus_client, target_offset)
+            if success:
+                logger.info(f"✓ LG Auto offset synced: {target_offset:+d}K (mode: {current_mode})")
+            else:
+                logger.error(f"✗ Failed to set LG Auto offset on startup")
+        else:
+            logger.warning("Modbus client not available - cannot sync LG offset")
+
+    except Exception as e:
+        logger.error(f"Error syncing LG Auto offset on startup: {e}")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Manage application lifecycle (startup/shutdown)."""
@@ -144,6 +202,10 @@ async def lifespan(app: FastAPI):
 
     # Start Prometheus metrics updater
     asyncio.create_task(update_prometheus_metrics())
+
+    # Sync LG Auto offset with current thermostat mode on startup
+    logger.info("Syncing LG Auto offset with thermostat mode...")
+    asyncio.create_task(sync_lg_offset_on_startup(thermostat_api_url))
 
     yield
 
@@ -529,24 +591,39 @@ async def set_temperature_setpoint_endpoint(setpoint: TemperatureSetpoint):
 )
 async def set_auto_mode_offset_endpoint(offset_control: AutoModeOffset):
     """Set LG Auto mode temperature offset via Modbus TCP."""
+    logger.info(f"=== AUTO MODE OFFSET CHANGE REQUEST ===")
+    logger.info(f"Requested offset: {offset_control.offset:+d}°C")
+
     if not modbus_client:
+        logger.warning("Modbus client not connected - cannot set offset")
         raise HTTPException(status_code=503, detail="Modbus client not connected")
 
     # Validate offset range
     if not -5 <= offset_control.offset <= 5:
+        logger.error(f"Invalid offset value: {offset_control.offset} (must be -5 to +5)")
         raise HTTPException(status_code=400, detail="Offset must be between -5 and +5 Kelvin")
 
+    logger.info(f"Writing to register 40005: {offset_control.offset:+d}°C")
+    logger.info(f"Modbus client connected: {modbus_client.connected if hasattr(modbus_client, 'connected') else 'unknown'}")
+
     try:
-        # READ-ONLY MODE: Modbus write disabled
-        # success = await set_auto_mode_offset(modbus_client, offset_control.offset)
-        success = False  # Disabled
-        if False and success:
-            logger.info(f"LG Auto mode offset changed to {offset_control.offset:+d}K")
+        # WRITE ENABLED for auto mode offset adjustment only
+        success = await set_auto_mode_offset(modbus_client, offset_control.offset)
+
+        if success:
+            logger.info(f"✓ Successfully changed LG Auto mode offset to {offset_control.offset:+d}°C")
+            logger.info(f"Register 40005 updated")
+            logger.info(f"=== END AUTO MODE OFFSET REQUEST ===")
             return {"status": "success", "auto_mode_offset": offset_control.offset}
         else:
-            raise HTTPException(status_code=500, detail="Failed to set auto mode offset (read-only mode)")
+            logger.error(f"✗ Failed to write offset to register 40005")
+            logger.info(f"=== END AUTO MODE OFFSET REQUEST ===")
+            raise HTTPException(status_code=500, detail="Failed to set auto mode offset")
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
     except Exception as e:
-        logger.error(f"Error setting auto mode offset: {e}")
+        logger.error(f"Unexpected error setting auto mode offset: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -758,6 +835,59 @@ async def reload_schedule_config():
         return result
     except Exception as e:
         logger.error(f"Error reloading schedule: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get(
+    "/lg-auto-offset-config",
+    summary="Get LG Auto Offset Configuration",
+    description="""
+    Get the LG Auto mode offset configuration that maps thermostat modes to offset values.
+
+    **Use Case**: Frontend needs to know which offset to apply when thermostat mode changes.
+
+    **Configuration File**: `service/heating_curve_config.json` (lg_auto_offset section)
+
+    **Response**:
+    - `enabled`: Whether auto offset adjustment is enabled
+    - `thermostat_mode_mappings`: Map of thermostat mode (ECO/AUTO/ON/OFF) to offset value (-5 to +5)
+    - `settings`: Min/max offset and default value
+    """,
+    tags=["Heat Pump"]
+)
+async def get_lg_auto_offset_config():
+    """Get LG Auto offset configuration for frontend."""
+    config_file = Path("/app/heating_curve_config.json")
+
+    if not config_file.exists():
+        raise HTTPException(status_code=503, detail="Configuration file not found")
+
+    try:
+        with open(config_file) as f:
+            config = json.load(f)
+
+        lg_offset_config = config.get('lg_auto_offset', {})
+
+        if not lg_offset_config:
+            # Return default config if not found
+            return {
+                "enabled": False,
+                "thermostat_mode_mappings": {
+                    "ECO": 0,
+                    "AUTO": 0,
+                    "ON": 0,
+                    "OFF": 0
+                },
+                "settings": {
+                    "default_offset": 0,
+                    "min_offset": -5,
+                    "max_offset": 5
+                }
+            }
+
+        return lg_offset_config
+    except Exception as e:
+        logger.error(f"Error reading LG auto offset config: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
