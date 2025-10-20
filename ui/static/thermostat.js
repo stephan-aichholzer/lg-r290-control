@@ -35,7 +35,6 @@ export async function init() {
 
     initEventListeners();
     await initializeDefaults();
-    await syncLgOffsetOnStartup();
     // Do immediate status update to show current state
     await updateStatus();
     startAutoUpdate();
@@ -67,29 +66,6 @@ async function initializeDefaults() {
         console.log('Thermostat defaults applied:', result);
     } catch (error) {
         console.error('Failed to set thermostat defaults:', error);
-        // Don't block initialization if this fails
-    }
-}
-
-/**
- * Sync LG Auto offset on startup based on current thermostat mode
- */
-async function syncLgOffsetOnStartup() {
-    try {
-        console.log('Syncing LG Auto offset with current thermostat mode...');
-
-        // Get current thermostat mode
-        const currentConfig = await apiRequest(`${CONFIG.THERMOSTAT_API_URL}/api/v1/thermostat/config`);
-        const currentMode = currentConfig.mode;
-
-        console.log(`Current thermostat mode: ${currentMode}`);
-
-        // Apply the corresponding LG offset
-        await applyLgAutoOffset(currentMode);
-
-        console.log('LG Auto offset synced on startup');
-    } catch (error) {
-        console.error('Failed to sync LG Auto offset on startup:', error);
         // Don't block initialization if this fails
     }
 }
