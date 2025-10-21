@@ -98,17 +98,28 @@ def format_status_line(status: dict) -> str:
     offset = status.get('auto_mode_offset', 0)
     offset_str = f"{offset:+d}K" if status['op_mode'] == 3 and offset != 0 else ""
 
-    # Calculate delta (flow - return temperature)
-    delta = status['flow_temp'] - status['return_temp']
+    # Calculate delta (flow - return temperature) - handle missing values
+    flow = status.get('flow_temp')
+    return_temp = status.get('return_temp')
+
+    if flow is not None and return_temp is not None:
+        delta = flow - return_temp
+        delta_str = f"{delta:+5.1f}°C"
+        flow_str = f"{flow:5.1f}°C"
+        return_str = f"{return_temp:5.1f}°C"
+    else:
+        delta_str = "   N/A  "
+        flow_str = "  N/A°C"
+        return_str = "  N/A°C"
 
     return (
         f"[{status['power_state']:3s}] {cycle_str:8s}({user_mode:4s}{offset_str:4s}) | "
-        f"Target: {status['target_temp']:4.1f}°C | "
-        f"Flow: {status['flow_temp']:5.1f}°C | "
-        f"Return: {status['return_temp']:5.1f}°C | "
-        f"Delta: {delta:+5.1f}°C | "
-        f"ODU: {status['outdoor_temp']:5.1f}°C | "
-        f"Error: {status['error_code']}"
+        f"Target: {status.get('target_temp', 0):4.1f}°C | "
+        f"Flow: {flow_str} | "
+        f"Return: {return_str} | "
+        f"Delta: {delta_str} | "
+        f"ODU: {status.get('outdoor_temp', 0):5.1f}°C | "
+        f"Error: {status.get('error_code', 0)}"
     )
 
 
