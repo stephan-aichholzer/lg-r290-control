@@ -45,9 +45,9 @@
     "description": "LG Auto Mode offset adjustment based on thermostat mode (ECO/AUTO/ON/OFF)",
     "enabled": true,
     "thermostat_mode_mappings": {
-      "ECO": -3,
-      "AUTO": 0,
-      "ON": 0,
+      "ECO": -2,
+      "AUTO": 2,
+      "ON": 2,
       "OFF": -5
     },
     "settings": {
