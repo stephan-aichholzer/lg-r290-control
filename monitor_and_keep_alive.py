@@ -98,11 +98,15 @@ def format_status_line(status: dict) -> str:
     offset = status.get('auto_mode_offset', 0)
     offset_str = f"{offset:+d}K" if status['op_mode'] == 3 and offset != 0 else ""
 
+    # Calculate delta (flow - return temperature)
+    delta = status['flow_temp'] - status['return_temp']
+
     return (
         f"[{status['power_state']:3s}] {cycle_str:8s}({user_mode:4s}{offset_str:4s}) | "
         f"Target: {status['target_temp']:4.1f}°C | "
         f"Flow: {status['flow_temp']:5.1f}°C | "
         f"Return: {status['return_temp']:5.1f}°C | "
+        f"Delta: {delta:+5.1f}°C | "
         f"ODU: {status['outdoor_temp']:5.1f}°C | "
         f"Error: {status['error_code']}"
     )
