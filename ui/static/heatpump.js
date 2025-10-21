@@ -402,10 +402,17 @@ async function setLGMode(mode) {
 
         console.log('LG mode set:', result);
 
-        // Update UI state
+        // Update UI state immediately (no waiting for poll)
         updateLGModeUI(mode);
 
-        // Refresh status after a short delay
+        // If switching to Heating mode and API returned default temperature, update slider
+        if (mode === 4 && result.default_temperature) {
+            elements.tempSlider.value = result.default_temperature;
+            elements.tempSliderValue.textContent = result.default_temperature.toFixed(1);
+            console.log(`Slider updated to default temperature: ${result.default_temperature}°C`);
+        }
+
+        // Refresh status after a short delay to confirm
         setTimeout(updateStatus, 500);
     } catch (error) {
         console.error('Failed to set LG mode:', error);

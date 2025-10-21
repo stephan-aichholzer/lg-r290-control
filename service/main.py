@@ -674,6 +674,10 @@ async def get_raw_registers():
 
     **Register**: 40001 (HOLDING_OP_MODE)
 
+    **Automatic Actions:**
+    - When switching to **Heating mode (4)**, automatically sets flow temperature to
+      default value from config.json (lg_heating_mode.default_flow_temperature)
+
     **Note**: Mode changes are logged for history/debugging.
     """,
     tags=["Heat Pump"]
@@ -684,12 +688,46 @@ async def set_lg_mode_endpoint(control: LGModeControl):
         raise HTTPException(status_code=503, detail="Modbus client not connected")
 
     try:
+        # Set the LG mode
         success = await set_lg_mode(modbus_client, control.mode)
-        if success:
-            mode_name = "Auto" if control.mode == 3 else "Heating"
-            return {"status": "success", "mode": control.mode, "mode_name": mode_name}
-        else:
+        if not success:
             raise HTTPException(status_code=500, detail="Failed to set LG mode")
+
+        mode_name = "Auto" if control.mode == 3 else "Heating"
+
+        # When switching to Heating mode, set default flow temperature
+        if control.mode == 4:
+            # Load default flow temperature from config
+            config_file = Path("/app/config.json")
+            if config_file.exists():
+                try:
+                    with open(config_file) as f:
+                        config = json.load(f)
+
+                    heating_config = config.get('lg_heating_mode', {})
+                    default_temp = heating_config.get('default_flow_temperature', 40.0)
+
+                    logger.info(f"Setting default flow temperature to {default_temp}°C for Heating mode")
+
+                    # Set the default temperature
+                    temp_success = await set_target_temperature(modbus_client, default_temp)
+                    if temp_success:
+                        logger.info(f"✓ Default flow temperature set to {default_temp}°C")
+                        return {
+                            "status": "success",
+                            "mode": control.mode,
+                            "mode_name": mode_name,
+                            "default_temperature": default_temp
+                        }
+                    else:
+                        logger.warning(f"Mode set to Heating but failed to set default temperature")
+                except Exception as e:
+                    logger.warning(f"Could not set default temperature: {e}")
+
+        return {"status": "success", "mode": control.mode, "mode_name": mode_name}
+
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error setting LG mode: {e}")
         raise HTTPException(status_code=500, detail=str(e))

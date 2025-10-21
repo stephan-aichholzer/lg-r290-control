@@ -13,5 +13,11 @@
       "min_offset": -5,
       "max_offset": 5
     }
+  },
+  "lg_heating_mode": {
+    "description": "LG Heating Mode (manual flow temperature control) settings",
+    "default_flow_temperature": 40.0,
+    "min_temperature": 33.0,
+    "max_temperature": 50.0
   }
 }
