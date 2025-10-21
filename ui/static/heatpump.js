@@ -21,8 +21,8 @@ const elements = {
     tempSlider: document.getElementById('temp-slider'),
     tempSliderValue: document.getElementById('temp-slider-value'),
     powerSwitch: document.getElementById('power-switch'),
-    aiModeSwitch: document.getElementById('ai-mode-switch'),
-    aiStatusText: document.getElementById('ai-status-text')
+    lgModeSwitch: document.getElementById('lg-mode-switch'),
+    lgModeStatusText: document.getElementById('lg-mode-status-text')
 };
 
 /**
@@ -31,8 +31,6 @@ const elements = {
 export function init() {
     initEventListeners();
     startAutoUpdate();
-    // Fetch initial AI mode status
-    fetchAIModeStatus();
 }
 
 /**
@@ -85,9 +83,10 @@ function initEventListeners() {
         }, 100);
     });
 
-    // AI mode toggle
-    elements.aiModeSwitch.addEventListener('change', async (e) => {
-        await setAIMode(e.target.checked);
+    // LG mode toggle
+    elements.lgModeSwitch.addEventListener('change', async (e) => {
+        const mode = e.target.checked ? 3 : 4; // 3=Auto, 4=Heating
+        await setLGMode(mode);
     });
 
     // LG Auto mode offset buttons - delegate event listener
@@ -122,9 +121,6 @@ async function updateStatus() {
         const data = await apiRequest(`${CONFIG.HEATPUMP_API_URL}/status`);
         updateUI(data);
         updateConnectionStatusBadge(true);
-
-        // Also fetch AI mode status periodically
-        await fetchAIModeStatus();
     } catch (error) {
         console.error('Failed to fetch heat pump status:', error);
         updateConnectionStatusBadge(false);
@@ -209,25 +205,28 @@ function updateUI(data) {
         }
     }
 
-    // Toggle Manual/Auto mode sections based on mode_setting
+    // Toggle Manual/Auto mode sections based on op_mode (register 40001)
     // IMPORTANT: The heat pump has two different temperature control mechanisms:
     //
-    // 1. MANUAL MODE (Heat/Cool) - Register 40001 = 0 (Cool) or 4 (Heat)
+    // 1. HEATING MODE (Manual) - Register 40001 = 4
     //    - User sets explicit target flow temperature via register 40003 (33-50°C)
     //    - Display: Temperature slider for direct control
     //    - Register 40005 (auto offset) is ignored
     //
-    // 2. AUTO MODE - Register 40001 = 3 (Auto)
+    // 2. AUTO MODE - Register 40001 = 3
     //    - LG's internal heating curve calculates optimal flow temperature
     //    - Based on outdoor temp (INPUT 30013) + heating curve + offset (HOLDING 40005)
     //    - Register 40003 (target temperature) is IGNORED in this mode!
-    //    - Display: Auto offset adjustment (±5K) - read-only for now
+    //    - Display: Auto offset adjustment (±5K)
     //
-    const modeSetting = data.mode_setting || "";
+    const opMode = data.op_mode; // Register 40001: 3=Auto, 4=Heating
     const manualSection = document.getElementById('manual-setpoint-section');
     const lgAutoSection = document.getElementById('lg-auto-offset-section');
 
-    if (modeSetting === "Auto") {
+    // Update LG mode toggle to match current mode
+    updateLGModeUI(opMode);
+
+    if (opMode === 3) {
         // LG Auto mode - hide manual slider (register 40003 unused), show offset (register 40005 active)
         if (manualSection) manualSection.style.display = 'none';
         if (lgAutoSection) lgAutoSection.style.display = 'block';
@@ -284,10 +283,10 @@ function updateUI(data) {
 
         console.log('LG Auto mode active, offset: ' + displayOffsetValue + '°C (register 40003 ignored)');
     } else {
-        // Manual mode (Heat or Cool) - show manual slider (register 40003 active), hide offset (register 40005 unused)
+        // Heating mode (manual) - show manual slider (register 40003 active), hide offset (register 40005 unused)
         if (manualSection) manualSection.style.display = 'block';
         if (lgAutoSection) lgAutoSection.style.display = 'none';
-        console.log('Manual mode active (' + modeSetting + '), using target temperature from register 40003');
+        console.log('Manual Heating mode active (mode=' + opMode + '), using target temperature from register 40003');
     }
 
     // Flow temperature - update badge display only if value changed
@@ -390,73 +389,63 @@ function setAutoModeOffset(offset) {
 }
 
 /**
- * Set AI mode (adaptive heating curve control)
- * @param {boolean} enabled - Enable or disable AI mode
+ * Set LG heat pump operating mode
+ * @param {number} mode - Operating mode (3=Auto, 4=Heating)
  */
-async function setAIMode(enabled) {
+async function setLGMode(mode) {
     try {
-        const result = await apiRequest(`${CONFIG.HEATPUMP_API_URL}/ai-mode`, {
+        const result = await apiRequest(`${CONFIG.HEATPUMP_API_URL}/lg-mode`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ enabled })
+            body: JSON.stringify({ mode: mode })
         });
 
-        console.log('AI Mode set:', result);
+        console.log('LG mode set:', result);
 
-        // Update UI state
-        updateAIModeUI(enabled);
+        // Update UI state immediately (no waiting for poll)
+        updateLGModeUI(mode);
 
-        // Refresh status after a short delay
-        setTimeout(updateStatus, 500);
-    } catch (error) {
-        console.error('Failed to set AI mode:', error);
-        alert('Failed to set AI mode');
-        // Revert switch state on error
-        elements.aiModeSwitch.checked = !enabled;
-    }
-}
-
-/**
- * Update AI mode UI state
- * @param {boolean} enabled - AI mode enabled state
- */
-function updateAIModeUI(enabled) {
-    // Update status text
-    if (enabled) {
-        elements.aiStatusText.textContent = 'AI Mode Active';
-        elements.aiStatusText.classList.add('active');
-
-        // Disable temperature slider
-        elements.tempSlider.disabled = true;
-        elements.tempSlider.classList.add('ai-disabled');
-    } else {
-        elements.aiStatusText.textContent = 'Manual Control';
-        elements.aiStatusText.classList.remove('active');
-
-        // Enable temperature slider
-        elements.tempSlider.disabled = false;
-        elements.tempSlider.classList.remove('ai-disabled');
-    }
-}
-
-/**
- * Fetch AI mode status
- */
-async function fetchAIModeStatus() {
-    try {
-        const data = await apiRequest(`${CONFIG.HEATPUMP_API_URL}/ai-mode`);
-
-        // Update switch state without triggering change event
-        if (elements.aiModeSwitch.checked !== data.enabled) {
-            elements.aiModeSwitch.checked = data.enabled;
+        // If switching to Heating mode and API returned default temperature, update slider
+        if (mode === 4 && result.default_temperature) {
+            elements.tempSlider.value = result.default_temperature;
+            elements.tempSliderValue.textContent = result.default_temperature.toFixed(1);
+            console.log(`Slider updated to default temperature: ${result.default_temperature}°C`);
         }
 
-        // Update UI
-        updateAIModeUI(data.enabled);
-
-        return data;
+        // Refresh status after a short delay to confirm
+        setTimeout(updateStatus, 500);
     } catch (error) {
-        console.error('Failed to fetch AI mode status:', error);
-        return null;
+        console.error('Failed to set LG mode:', error);
+        alert('Failed to set LG mode');
+        // Revert switch state on error
+        elements.lgModeSwitch.checked = (mode === 4 ? true : false);
+    }
+}
+
+/**
+ * Update LG mode UI state
+ * @param {number} mode - Operating mode (3=Auto, 4=Heating)
+ */
+function updateLGModeUI(mode) {
+    const isAuto = (mode === 3);
+
+    // Update toggle (checked = Auto mode)
+    if (elements.lgModeSwitch.checked !== isAuto) {
+        elements.lgModeSwitch.checked = isAuto;
+    }
+
+    // Update status text
+    elements.lgModeStatusText.textContent = isAuto ? 'LG Auto Mode' : 'Manual Heating';
+
+    // Show/hide appropriate sections
+    const manualSection = document.getElementById('manual-setpoint-section');
+    const autoSection = document.getElementById('lg-auto-offset-section');
+
+    if (isAuto) {
+        if (manualSection) manualSection.style.display = 'none';
+        if (autoSection) autoSection.style.display = 'block';
+    } else {
+        if (manualSection) manualSection.style.display = 'block';
+        if (autoSection) autoSection.style.display = 'none';
     }
 }

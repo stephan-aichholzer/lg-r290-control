@@ -21,9 +21,8 @@ from prometheus_client import Gauge, make_asgi_app
 # Import shared Modbus library (replaces modbus_client.py)
 import sys
 sys.path.insert(0, '/app')
-from lg_r290_modbus import connect_gateway, set_power, set_target_temperature, set_auto_mode_offset
+from lg_r290_modbus import connect_gateway, set_power, set_target_temperature, set_auto_mode_offset, set_lg_mode
 
-from adaptive_controller import AdaptiveController
 from scheduler import Scheduler
 
 # Configure logging
@@ -38,9 +37,6 @@ STATUS_FILE = Path("/app/status.json")
 
 # Global Modbus client for write operations
 modbus_client = None
-
-# Global adaptive controller instance
-adaptive_controller: Optional[AdaptiveController] = None
 
 # Global scheduler instance
 scheduler: Optional[Scheduler] = None
@@ -111,6 +107,33 @@ async def update_prometheus_metrics():
         await asyncio.sleep(30)  # Update every 30s
 
 
+async def set_lg_auto_mode_on_startup():
+    """
+    Set LG Auto mode (register 40001 = 3) as default on service startup.
+
+    This ensures the heat pump always starts in Auto mode regardless of the
+    previous state (e.g., after power outage, service restart, or manual mode change).
+    """
+    try:
+        # Wait a few seconds for Modbus connection to stabilize
+        await asyncio.sleep(3)
+
+        if not modbus_client:
+            logger.warning("Modbus client not connected - cannot set LG Auto mode on startup")
+            return
+
+        logger.info("Setting heat pump to LG Auto mode (register 40001 = 3)...")
+        success = await set_lg_mode(modbus_client, 3)
+
+        if success:
+            logger.info("✅ LG Auto mode set successfully on startup")
+        else:
+            logger.error("❌ Failed to set LG Auto mode on startup")
+
+    except Exception as e:
+        logger.error(f"Error setting LG Auto mode on startup: {e}")
+
+
 async def sync_lg_offset_on_startup(thermostat_api_url: str):
     """
     Sync LG Auto mode offset with current thermostat mode on service startup.
@@ -134,9 +157,9 @@ async def sync_lg_offset_on_startup(thermostat_api_url: str):
         logger.info(f"Current thermostat mode: {current_mode}")
 
         # Load LG offset configuration
-        config_file = Path("/app/heating_curve_config.json")
+        config_file = Path("/app/config.json")
         if not config_file.exists():
-            logger.warning("heating_curve_config.json not found - skipping LG offset sync")
+            logger.warning("config.json not found - skipping LG offset sync")
             return
 
         with open(config_file) as f:
@@ -171,7 +194,7 @@ async def sync_lg_offset_on_startup(thermostat_api_url: str):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Manage application lifecycle (startup/shutdown)."""
-    global modbus_client, adaptive_controller, scheduler
+    global modbus_client, scheduler
 
     # Startup
     thermostat_api_url = os.getenv("THERMOSTAT_API_URL", "http://192.168.2.11:8001")
@@ -184,11 +207,6 @@ async def lifespan(app: FastAPI):
         logger.error("Failed to connect to Modbus gateway - service may not function correctly")
     else:
         logger.info("✅ Modbus gateway connected")
-
-    # Initialize adaptive controller
-    logger.info("Initializing adaptive controller (AI Mode)")
-    adaptive_controller = AdaptiveController(STATUS_FILE, thermostat_api_url)
-    adaptive_controller.start()
 
     # Initialize scheduler (if enabled)
     if ENABLE_SCHEDULER:
@@ -203,6 +221,10 @@ async def lifespan(app: FastAPI):
     # Start Prometheus metrics updater
     asyncio.create_task(update_prometheus_metrics())
 
+    # Set LG Auto mode (3) as default on startup
+    logger.info("Setting LG Auto mode as default...")
+    asyncio.create_task(set_lg_auto_mode_on_startup())
+
     # Sync LG Auto offset with current thermostat mode on startup
     logger.info("Syncing LG Auto offset with thermostat mode...")
     asyncio.create_task(sync_lg_offset_on_startup(thermostat_api_url))
@@ -212,10 +234,6 @@ async def lifespan(app: FastAPI):
     # Shutdown
     if scheduler and ENABLE_SCHEDULER:
         logger.info("Scheduler stopped")
-
-    if adaptive_controller:
-        adaptive_controller.stop()
-        logger.info("Adaptive controller stopped")
 
     if modbus_client:
         modbus_client.close()
@@ -277,6 +295,7 @@ class HeatPumpStatus(BaseModel):
     compressor_running: bool = Field(description="Compressor operational status")
     operating_mode: str = Field(description="Current operating mode (Standby, Heating, Cooling, Auto) - actual cycle state")
     mode_setting: str = Field(description="LG mode setting (Cool, Heat, Auto) - HOLDING register 40001")
+    op_mode: int = Field(description="Raw LG mode register value (3=Auto, 4=Heating) - HOLDING register 40001")
     target_temperature: float = Field(description="Target flow temperature setpoint in °C (20.0-60.0) - ONLY USED in Heat/Cool modes, IGNORED in Auto mode")
     auto_mode_offset: int = Field(description="LG Auto mode temperature offset in K (-5 to +5) - ONLY USED in Auto mode, ignored in Heat/Cool modes")
     flow_temperature: float = Field(description="Actual flow temperature (water outlet) in °C")
@@ -350,15 +369,18 @@ class AutoModeOffset(BaseModel):
     }
 
 
-class AIModeControl(BaseModel):
-    """Enable or disable AI Mode (automatic flow temperature control based on heating curves)."""
-    enabled: bool = Field(
-        description="Set to true to enable AI Mode (automatic), false for manual control"
+class LGModeControl(BaseModel):
+    """Set LG heat pump operating mode."""
+    mode: int = Field(
+        ...,
+        ge=3,
+        le=4,
+        description="LG mode: 3=Auto (LG heating curve), 4=Heating (manual flow temp)"
     )
 
     model_config = {
         "json_schema_extra": {
-            "examples": [{"enabled": True}, {"enabled": False}]
+            "examples": [{"mode": 3}, {"mode": 4}]
         }
     }
 
@@ -460,6 +482,7 @@ async def get_status():
             "compressor_running": data['operating_mode'] in [1, 2],  # Running in Cooling/Heating
             "operating_mode": mode_map.get(data['operating_mode'], "Unknown"),
             "mode_setting": lg_mode_setting_map.get(data['op_mode'], f"Unknown ({data['op_mode']})"),
+            "op_mode": data['op_mode'],  # Raw register 40001 value (3=Auto, 4=Heating)
             "target_temperature": data['target_temp'],
             "auto_mode_offset": data.get('auto_mode_offset', 0),
             "flow_temperature": data['flow_temp'],
@@ -501,18 +524,6 @@ async def set_power_endpoint(control: PowerControl):
         success = False  # Disabled
         if False and success:
             logger.info(f"Heat pump power set to {'ON' if control.power_on else 'OFF'} via API")
-
-            # Sync AI Mode with power state
-            if adaptive_controller:
-                if control.power_on:
-                    # Turning ON → Enable AI Mode
-                    adaptive_controller.enabled = True
-                    logger.info("AI Mode automatically enabled (heat pump turned ON)")
-                else:
-                    # Turning OFF → Disable AI Mode
-                    adaptive_controller.enabled = False
-                    logger.info("AI Mode automatically disabled (heat pump turned OFF)")
-
             return {"status": "success", "power_on": control.power_on}
         else:
             raise HTTPException(status_code=500, detail="Failed to set power state")
@@ -652,111 +663,73 @@ async def get_raw_registers():
 
 
 @app.post(
-    "/ai-mode",
-    summary="Enable/Disable AI Mode",
+    "/lg-mode",
+    summary="Set LG Operating Mode",
     description="""
-    Enable or disable AI Mode (automatic flow temperature control).
+    Switch LG heat pump between Auto and Heating modes.
 
-    **AI Mode Enabled (Automatic)**:
-    - System automatically calculates optimal flow temperature
-    - Based on outdoor temperature and target room temperature
-    - Uses predefined heating curves (Comfort/Standard/Eco)
-    - Adjusts every 30 seconds
-    - May turn heat pump ON/OFF based on outdoor cutoff temperature
+    **Modes:**
+    - **3 = Auto Mode**: LG's own heating curve logic (use offset for adjustments)
+    - **4 = Heating Mode**: Manual flow temperature control (set via /setpoint)
 
-    **AI Mode Disabled (Manual)**:
-    - Flow temperature is controlled manually via /setpoint
-    - No automatic adjustments
+    **Register**: 40001 (HOLDING_OP_MODE)
 
-    **Default**: AI Mode is enabled by default at startup for deterministic control.
+    **Automatic Actions:**
+    - When switching to **Heating mode (4)**, automatically sets flow temperature to
+      default value from config.json (lg_heating_mode.default_flow_temperature)
+
+    **Note**: Mode changes are logged for history/debugging.
     """,
-    tags=["AI Mode"]
+    tags=["Heat Pump"]
 )
-async def set_ai_mode(control: AIModeControl):
-    """Enable or disable AI mode (adaptive heating curve control)."""
-    if not adaptive_controller:
-        raise HTTPException(status_code=503, detail="Adaptive controller not initialized")
+async def set_lg_mode_endpoint(control: LGModeControl):
+    """Set LG heat pump operating mode (Auto=3 or Heating=4)."""
+    if not modbus_client:
+        raise HTTPException(status_code=503, detail="Modbus client not connected")
 
     try:
-        adaptive_controller.enabled = control.enabled
-        status_text = "enabled" if control.enabled else "disabled"
-        logger.info(f"AI Mode {status_text}")
+        # Set the LG mode
+        success = await set_lg_mode(modbus_client, control.mode)
+        if not success:
+            raise HTTPException(status_code=500, detail="Failed to set LG mode")
 
-        return {
-            "status": "success",
-            "ai_mode": control.enabled,
-            "message": f"AI Mode {status_text}"
-        }
+        mode_name = "Auto" if control.mode == 3 else "Heating"
+
+        # When switching to Heating mode, set default flow temperature
+        if control.mode == 4:
+            # Load default flow temperature from config
+            config_file = Path("/app/config.json")
+            if config_file.exists():
+                try:
+                    with open(config_file) as f:
+                        config = json.load(f)
+
+                    heating_config = config.get('lg_heating_mode', {})
+                    default_temp = heating_config.get('default_flow_temperature', 40.0)
+
+                    logger.info(f"Setting default flow temperature to {default_temp}°C for Heating mode")
+
+                    # Set the default temperature
+                    temp_success = await set_target_temperature(modbus_client, default_temp)
+                    if temp_success:
+                        logger.info(f"✓ Default flow temperature set to {default_temp}°C")
+                        return {
+                            "status": "success",
+                            "mode": control.mode,
+                            "mode_name": mode_name,
+                            "default_temperature": default_temp
+                        }
+                    else:
+                        logger.warning(f"Mode set to Heating but failed to set default temperature")
+                except Exception as e:
+                    logger.warning(f"Could not set default temperature: {e}")
+
+        return {"status": "success", "mode": control.mode, "mode_name": mode_name}
+
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error setting AI mode: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get(
-    "/ai-mode",
-    summary="Get AI Mode Status",
-    description="""
-    Get current AI Mode status and detailed information including:
-    - Enabled/disabled state
-    - Last update timestamp
-    - Current outdoor and target room temperatures
-    - Calculated flow temperature
-    - Selected heating curve
-    - Update interval and adjustment threshold
-
-    **Response includes**:
-    - `enabled`: AI Mode state
-    - `outdoor_temperature`: Current outdoor temp (°C)
-    - `target_room_temperature`: Target room temp from thermostat (°C)
-    - `calculated_flow_temperature`: Optimal flow temp (°C)
-    - `heating_curve`: Selected curve info (name, target temp range)
-    """,
-    tags=["AI Mode"]
-)
-async def get_ai_mode():
-    """Get current AI mode status and information."""
-    if not adaptive_controller:
-        raise HTTPException(status_code=503, detail="Adaptive controller not initialized")
-
-    try:
-        status = adaptive_controller.get_status()
-        return status
-    except Exception as e:
-        logger.error(f"Error getting AI mode status: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.post(
-    "/ai-mode/reload-config",
-    summary="Reload Heating Curve Configuration",
-    description="""
-    Hot-reload heating curve configuration from `heating_curve_config.json` without restarting the service.
-
-    **Use Case**: Update heating curves, outdoor cutoff temperatures, or AI Mode parameters
-    without downtime.
-
-    **Configuration File**: `service/heating_curve_config.json`
-
-    **Response**:
-    - `config_changed`: true if configuration was modified, false if unchanged
-    """,
-    tags=["AI Mode"]
-)
-async def reload_heating_curve_config():
-    """Reload heating curve configuration without restarting service."""
-    if not adaptive_controller:
-        raise HTTPException(status_code=503, detail="Adaptive controller not initialized")
-
-    try:
-        changed = adaptive_controller.reload_config()
-        logger.info(f"AI Mode configuration reloaded via API (config changed: {changed})")
-        return {
-            "status": "success",
-            "config_changed": changed,
-            "message": "Configuration reloaded successfully"
-        }
-    except Exception as e:
-        logger.error(f"Error reloading config: {e}")
+        logger.error(f"Error setting LG mode: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -846,7 +819,7 @@ async def reload_schedule_config():
 
     **Use Case**: Frontend needs to know which offset to apply when thermostat mode changes.
 
-    **Configuration File**: `service/heating_curve_config.json` (lg_auto_offset section)
+    **Configuration File**: `service/config.json` (lg_auto_offset section)
 
     **Response**:
     - `enabled`: Whether auto offset adjustment is enabled
@@ -857,7 +830,7 @@ async def reload_schedule_config():
 )
 async def get_lg_auto_offset_config():
     """Get LG Auto offset configuration for frontend."""
-    config_file = Path("/app/heating_curve_config.json")
+    config_file = Path("/app/config.json")
 
     if not config_file.exists():
         raise HTTPException(status_code=503, detail="Configuration file not found")

@@ -417,3 +417,44 @@ async def set_auto_mode_offset(client: AsyncModbusTcpClient, offset: int) -> boo
     except Exception as e:
         logger.error(f"Error setting auto mode offset: {e}")
         return False
+
+
+async def set_lg_mode(client: AsyncModbusTcpClient, mode: int) -> bool:
+    """
+    Set LG heat pump operating mode.
+
+    Args:
+        client: Connected Modbus client
+        mode: Operating mode:
+            - 3 = Auto mode (LG's heating curve logic)
+            - 4 = Heating mode (manual flow temperature control)
+
+    Returns:
+        True on success, False on failure
+    """
+    valid_modes = {3: "Auto", 4: "Heating"}
+
+    if mode not in valid_modes:
+        logger.error(f"Invalid LG mode {mode}. Valid modes: 3=Auto, 4=Heating")
+        return False
+
+    try:
+        await asyncio.sleep(INTER_REQUEST_DELAY)
+        result = await modbus_operation_with_retry(
+            client,
+            client.write_register,
+            HOLDING_OP_MODE, mode,
+            operation_name=f"set LG mode to {valid_modes[mode]} ({mode})",
+            slave=DEVICE_ID
+        )
+
+        if result is None:
+            logger.error(f"Failed to set LG mode to {valid_modes[mode]} ({mode})")
+            return False
+
+        logger.info(f"🔄 LG Mode changed to {valid_modes[mode]} (register 40001 = {mode})")
+        return True
+
+    except Exception as e:
+        logger.error(f"Error setting LG mode: {e}")
+        return False

@@ -1,10 +1,10 @@
 # LG R290 Heat Pump Control System
 
-A Docker-based software stack for interfacing with an LG R290 7kW heat pump via Modbus TCP protocol with integrated room thermostat control and AI-powered adaptive heating curve.
+A Docker-based software stack for interfacing with an LG R290 7kW heat pump via Modbus TCP protocol with integrated room thermostat control and direct LG mode control.
 
-**Version**: v0.8 (Stable)
+**Version**: v1.0 (Stable)
 **Platform**: Raspberry Pi 5 / Linux
-**Status**: Production ready with AI Mode for autonomous weather compensation
+**Status**: Production ready with LG Auto mode and manual heating control
 
 ## Features
 
@@ -24,22 +24,18 @@ A Docker-based software stack for interfacing with an LG R290 7kW heat pump via 
 - **Heat Pump Control**:
   - Real-time monitoring: Flow temperature gauge, power status
   - Unified status badges: Heat pump, compressor, circulation pump (with LED indicators)
-  - Temperature setpoint slider with auto-sync (2s interval)
-  - Power ON/OFF control
-  - **AI Mode Toggle**: Manual/AI control mode switch with visual feedback
+  - **LG Mode Toggle**: Switch between LG Auto mode and Manual Heating mode
+  - **LG Auto Mode**: Uses LG's internal heating curve with adjustable offset (-5 to +5K)
+  - **Manual Heating Mode**: Direct flow temperature control (33-50°C) with slider
+  - Instant UI response: Sections appear immediately when switching modes
+  - Power ON/OFF control (read-only mode for safety)
 - **Room Thermostat Integration**:
   - 4 operating modes: AUTO, ECO, ON, OFF
   - Target temperature control (18-24°C, 0.5°C steps)
   - Circulation pump status indicator
   - 60-second polling interval
   - Integrates with Shelly BT Thermostat API
-- **AI Mode (NEW in v0.8)**:
-  - Adaptive heating curve: Automatic flow temperature optimization
-  - Weather compensation: Adjusts based on outdoor temperature
-  - 3 heating curves: ECO (≤21°C), Comfort (21-23°C), High (>23°C)
-  - Autonomous operation: Evaluates every 30 seconds
-  - User-editable configuration via JSON
-  - Automatic shutdown when outdoor temp ≥18°C
+  - Automatic LG offset adjustment based on thermostat mode
 - **Scheduler (NEW)**:
   - Time-based automatic room temperature control
   - Week-based schedules (separate weekday/weekend patterns)
@@ -179,47 +175,50 @@ AI Mode enables autonomous flow temperature optimization based on outdoor temper
    - Adjusts the heat pump if needed (threshold: 2°C)
    - Turns off the heat pump when outdoor temp ≥18°C
 
-**Heating Curves** (defined in `service/heating_curve_config.json`):
+**LG Mode Configuration** (`service/config.json`):
 
-| Target Room Temp | Curve | Outdoor < -10°C | -10°C to 0°C | 0°C to 10°C | 10°C to 18°C |
-|------------------|-------|-----------------|--------------|-------------|--------------|
-| ≤21°C | ECO | 46°C | 43°C | 38°C | 33°C |
-| 21-23°C | Comfort | 48°C | 45°C | 40°C | 35°C |
-| >23°C | High | 50°C | 47°C | 42°C | 37°C |
-
-**Configuration** (`service/heating_curve_config.json`):
+**LG Auto Mode Offset** - Adjusts LG's heating curve based on thermostat mode:
 ```json
 {
-  "settings": {
-    "outdoor_cutoff_temp": 18.0,        // Heat pump off above this temp
-    "outdoor_restart_temp": 17.0,       // Heat pump on below this temp (hysteresis)
-    "update_interval_seconds": 600,     // Evaluation interval (10 minutes)
-    "min_flow_temp": 30.0,              // Safety limit minimum
-    "max_flow_temp": 50.0,              // Safety limit maximum
-    "adjustment_threshold": 2.0,        // Only adjust if difference > 2°C
-    "hysteresis_outdoor": 1.0           // Temperature hysteresis
+  "lg_auto_offset": {
+    "enabled": true,
+    "thermostat_mode_mappings": {
+      "ECO": -2,    // -2K offset in ECO mode (energy saving)
+      "AUTO": 2,    // +2K offset in AUTO mode (comfort)
+      "ON": 2,      // +2K offset in ON mode (comfort)
+      "OFF": -5     // -5K offset in OFF mode (minimal heating)
+    },
+    "settings": {
+      "default_offset": 0,
+      "min_offset": -5,
+      "max_offset": 5
+    }
   }
 }
 ```
 
-**Hot-Reload Configuration**:
-```bash
-# Edit the configuration file
-nano service/heating_curve_config.json
-
-# Reload without restarting
-curl -X POST http://localhost:8002/ai-mode/reload-config
+**Manual Heating Mode Settings** - Default temperature when switching to manual control:
+```json
+{
+  "lg_heating_mode": {
+    "default_flow_temperature": 40.0,  // Default when entering manual mode
+    "min_temperature": 33.0,           // Minimum allowed
+    "max_temperature": 50.0            // Maximum allowed
+  }
+}
 ```
 
 **API Endpoints**:
-- `GET /ai-mode` - Get AI mode status and diagnostics
-- `POST /ai-mode` - Enable/disable AI mode: `{"enabled": true}`
-- `POST /ai-mode/reload-config` - Reload configuration
+- `GET /status` - Get heat pump status (includes current mode and temperatures)
+- `POST /lg-mode` - Switch modes: `{"mode": 3}` (Auto) or `{"mode": 4}` (Heating)
+- `POST /auto-mode-offset` - Set offset: `{"offset": 2}` (range: -5 to +5)
+- `POST /setpoint` - Set flow temperature: `{"temperature": 40.0}` (only in Heating mode)
+- `GET /lg-auto-offset-config` - Get offset configuration
 
-**Requirements**:
-- Thermostat API must be accessible for target room temperature
-- Heat pump must provide outdoor temperature readings
-- Recommended for heating season (outdoor temp < 18°C)
+**Startup Behavior**:
+- Heat pump always starts in **LG Auto Mode (3)** on service startup
+- Default offset applied based on current thermostat mode
+- Ensures consistent behavior after power outages or restarts
 
 ## Configuration
 
@@ -448,31 +447,31 @@ See [CHANGELOG.md](CHANGELOG.md) for detailed version history.
 
 ### v0.8 - Current (2025-10-10)
 
-**Status**: Production ready with AI Mode for autonomous weather compensation
+**Status**: Production ready with LG Auto mode and manual heating control
 
-**New Features:**
-- ✅ **AI Mode**: Adaptive heating curve with weather compensation
-- ✅ **3 Heating Curves**: ECO (≤21°C), Comfort (21-23°C), High (>23°C)
-- ✅ **Autonomous Operation**: Evaluates every 10 minutes when enabled
-- ✅ **Manual/AI Toggle**: Integrated into Power Control panel
-- ✅ **Thermostat Integration**: Uses target room temperature for curve selection
-- ✅ **JSON Configuration**: User-editable heating curves and parameters
-- ✅ **Hot-Reload**: Update configuration without restarting service
-- ✅ **Safety Features**: Min/max limits, hysteresis, adjustment thresholds
-- ✅ **Auto-Shutdown**: Heat pump off when outdoor temp ≥18°C
-- ✅ **Visual Feedback**: Slider disabled when AI mode active, status text updates
+**Key Features (v1.0):**
+- ✅ **LG Mode Control**: Simple toggle between Auto and Manual Heating modes
+- ✅ **LG Auto Mode**: Uses LG's internal heating curve with adjustable offset (-5 to +5K)
+- ✅ **Manual Heating Mode**: Direct flow temperature control (33-50°C)
+- ✅ **Instant UI Response**: Mode sections appear immediately (no 30s poll wait)
+- ✅ **Auto Startup**: Always starts in LG Auto mode on service restart
+- ✅ **Default Temperature**: Automatically sets 40°C when switching to manual mode
+- ✅ **Thermostat Integration**: Offset automatically adjusts based on ECO/AUTO/ON/OFF modes
+- ✅ **JSON Configuration**: User-editable offset mappings and default temperature
+- ✅ **Safe GUI Reload**: Page refresh never triggers unwanted mode changes
+- ✅ **Mode Logging**: All mode changes logged with emoji for easy tracking
 
 **Backend Enhancements:**
-- New API endpoints: `/ai-mode` (GET/POST), `/ai-mode/reload-config`
-- New modules: `heating_curve.py`, `adaptive_controller.py`
-- Added httpx dependency for thermostat API integration
-- Background control loop with configurable 10-minute interval
-
+- New API endpoints: `/lg-mode` (POST), `/auto-mode-offset` (POST), `/lg-auto-offset-config` (GET)
+- Startup function: Automatically sets LG Auto mode on service start
+- Config-driven: Default temperatures and offset mappings in `config.json`
+- Clean architecture: Removed 582 lines of dead-end code (net: -323 lines)
 **UI Improvements:**
-- Manual/AI toggle switch in Power Control panel
-- Status indicator: "Manual Control" / "AI Mode Active" (green when active)
-- Temperature slider auto-disables when AI mode enabled
-- Real-time AI mode status polling
+- LG Auto toggle switch in Power Control panel
+- Status indicator: "Manual Heating" / "LG Auto Mode"
+- Instant section switching (offset controls ↔ temperature slider)
+- Temperature slider shows default 40°C when entering manual mode
+- Status polling syncs mode from backend (safe page reloads)
 
 ### v0.7 (2025-10-10)
 

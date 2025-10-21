@@ -121,8 +121,9 @@ The LG R290 Heat Pump Control System is a containerized, microservices-based arc
 - Modbus connection management with reconnection logic
 - Register value conversion (e.g., 0.1°C scaling)
 - CORS enabled for web UI access
-- AI Mode: Adaptive heating curve control with weather compensation
-- Thermostat integration for room temperature feedback
+- LG Mode Control: Direct toggle between Auto and Heating modes
+- LG Auto Mode: Uses LG's internal heating curve with configurable offset
+- Thermostat integration: Auto-adjusts offset based on ECO/AUTO/ON/OFF modes
 
 **Data Flow**:
 1. On startup: Connect to Modbus TCP server (mock or real)
@@ -140,16 +141,17 @@ The LG R290 Heat Pump Control System is a containerized, microservices-based arc
 | POST | `/setpoint` | Set target temperature | TemperatureSetpoint | Status message |
 | GET | `/health` | Health check | - | Health status |
 | GET | `/registers/raw` | Raw register data (debug) | - | Raw values |
-| GET | `/ai-mode` | AI mode status and diagnostics | - | AI mode status |
-| POST | `/ai-mode` | Enable/disable AI mode | AIModeControl | Status message |
-| POST | `/ai-mode/reload-config` | Hot-reload heating curve config | - | Status message |
+| POST | `/lg-mode` | Switch LG operating mode | LGModeControl | Mode status + default temp |
+| POST | `/auto-mode-offset` | Set LG Auto offset | OffsetControl | Status message |
+| GET | `/lg-auto-offset-config` | Get offset configuration | - | Offset config |
 
 **Files**:
 - `service/main.py`: FastAPI application and endpoints
-- `service/modbus_client.py`: Modbus TCP client wrapper
-- `service/heating_curve.py`: Heating curve configuration and calculation
-- `service/adaptive_controller.py`: AI mode autonomous control loop
-- `service/heating_curve_config.json`: Heating curve configuration (user-editable)
+- `lg_r290_modbus.py`: Shared Modbus library (used by service and standalone scripts)
+- `monitor_and_keep_alive.py`: Background daemon for status polling and external control
+- `service/scheduler.py`: Time-based temperature scheduling
+- `service/config.json`: LG mode configuration (offset mappings, default temperatures)
+- `service/schedule.json`: Time-based schedule configuration
 - `service/Dockerfile`: Container build configuration
 
 **Configuration** (Environment Variables):
@@ -217,87 +219,94 @@ The LG R290 Heat Pump Control System is a containerized, microservices-based arc
 - `ui/thermostat.js`: Thermostat control module (modes, temperature adjustment)
 - `ui/Dockerfile`: Nginx container configuration
 
-### 4. AI Mode (Adaptive Heating Curve)
+### 4. LG Mode Control
 
-**Purpose**: Autonomous flow temperature optimization based on outdoor temperature and target room temperature using weather compensation heating curves.
+**Purpose**: Direct control of LG heat pump operating modes with automatic offset adjustment and default temperature management.
 
 **Technology**: Python 3.11, httpx (for thermostat API integration)
 
 **Key Features**:
-- Three heating curves: ECO (≤21°C), Comfort (21-23°C), High (>23°C)
-- Weather compensation: Adjusts flow temperature based on outdoor conditions
-- Thermostat integration: Uses target room temperature to select appropriate curve
-- JSON-based configuration: User-editable heating curves and parameters
-- Hot-reload capability: Update configuration without service restart
-- Autonomous operation: Runs every 10 minutes when enabled
-- Safety features: Min/max temperature limits, hysteresis, adjustment thresholds
-- UI integration: Manual/AI toggle switch with slider disable when AI active
+- Two operating modes: LG Auto (register 40001=3) and Manual Heating (register 40001=4)
+- LG Auto Mode: Uses LG's internal heating curve with configurable offset (-5 to +5K)
+- Manual Heating Mode: Direct flow temperature control (33-50°C)
+- Automatic startup: Always starts in LG Auto mode on service restart
+- Default temperature: Automatically sets 40°C when switching to manual mode
+- Thermostat integration: Auto-adjusts offset based on ECO/AUTO/ON/OFF modes
+- JSON-based configuration: User-editable offset mappings and defaults
+- Instant UI response: Mode sections appear immediately (no 30s poll wait)
 
 **Architecture**:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│              Adaptive Controller (Background Task)          │
+│                    LG Mode Control Flow                     │
 │                                                             │
-│  Every 10 minutes (when AI Mode enabled):                  │
+│  Service Startup:                                           │
+│    1. Connect to Modbus gateway                             │
+│    2. Set LG Auto Mode (register 40001 = 3) ──► Modbus     │
+│    3. Read thermostat mode ──────────────────► HTTP API     │
+│    4. Apply offset based on mode ─────────────► Modbus      │
 │                                                             │
-│  1. Read outdoor temperature ──────► Modbus (Heat Pump)   │
+│  User switches to Manual Heating (mode 4):                  │
+│    1. POST /lg-mode {"mode": 4}                             │
+│    2. Write mode to register 40001 ───────────► Modbus      │
+│    3. Read default temp from config.json                    │
+│    4. Write default (40°C) to register 40003 ──► Modbus     │
+│    5. Return response with default_temperature              │
+│    6. UI updates slider instantly (no poll wait)            │
 │                                                             │
-│  2. Read target room temperature ──► HTTP (Thermostat API) │
+│  User switches to LG Auto (mode 3):                         │
+│    1. POST /lg-mode {"mode": 3}                             │
+│    2. Write mode to register 40001 ───────────► Modbus      │
+│    3. UI shows offset controls instantly                    │
 │                                                             │
-│  3. Select heating curve ──────────► heating_curve.py      │
-│     - ECO: target ≤ 21°C                                    │
-│     - Comfort: 21°C < target ≤ 23°C                         │
-│     - High: target > 23°C                                   │
-│                                                             │
-│  4. Calculate optimal flow temp ───► Based on outdoor temp  │
-│     - Outdoor < -10°C: 46-50°C (curve dependent)            │
-│     - Outdoor < 0°C: 43-47°C                                │
-│     - Outdoor < 10°C: 38-42°C                               │
-│     - Outdoor < 18°C: 33-37°C                               │
-│     - Outdoor ≥ 18°C: Heat pump OFF                         │
-│                                                             │
-│  5. Adjust if needed ──────────────► Modbus write           │
-│     - Only if |current - optimal| > 2°C (threshold)         │
-│     - Apply safety limits (30-50°C)                         │
+│  Thermostat mode changes (ECO/AUTO/ON/OFF):                 │
+│    1. Frontend detects mode change                          │
+│    2. POST /auto-mode-offset with mapped value              │
+│    3. Write offset to register 40005 ──────────► Modbus     │
 │                                                             │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-**Configuration** (`heating_curve_config.json`):
+**Configuration** (`config.json`):
 ```json
 {
-  "heating_curves": {
-    "eco": { "target_temp_range": [0, 21.0], "curve": [...] },
-    "comfort": { "target_temp_range": [21.0, 23.0], "curve": [...] },
-    "high": { "target_temp_range": [23.0, 999], "curve": [...] }
+  "lg_auto_offset": {
+    "enabled": true,
+    "thermostat_mode_mappings": {
+      "ECO": -2,
+      "AUTO": 2,
+      "ON": 2,
+      "OFF": -5
+    },
+    "settings": {
+      "default_offset": 0,
+      "min_offset": -5,
+      "max_offset": 5
+    }
   },
-  "settings": {
-    "outdoor_cutoff_temp": 18.0,
-    "outdoor_restart_temp": 17.0,
-    "update_interval_seconds": 600,
-    "min_flow_temp": 30.0,
-    "max_flow_temp": 50.0,
-    "adjustment_threshold": 2.0,
-    "hysteresis_outdoor": 1.0
+  "lg_heating_mode": {
+    "default_flow_temperature": 40.0,
+    "min_temperature": 33.0,
+    "max_temperature": 50.0
   }
 }
 ```
 
 **Data Flow**:
-1. User toggles AI mode via UI switch
-2. POST `/ai-mode` enables adaptive controller
-3. Background loop wakes every 10 minutes
-4. Fetches outdoor temp (from heat pump) and target room temp (from thermostat)
-5. Calculates optimal flow temperature using heating curves
-6. Writes new setpoint to heat pump if adjustment needed
-7. UI polls `/ai-mode` status to display diagnostics
+1. User toggles LG Auto mode via UI switch
+2. POST `/lg-mode` sets register 40001 (3=Auto, 4=Heating)
+3. If switching to Heating, backend sets default temperature (40°C)
+4. UI updates sections instantly (no waiting for status poll)
+5. Frontend syncs mode from `/status` endpoint (op_mode field)
+6. Mode changes logged with emoji for easy tracking
 
 **UI Components**:
-- Manual/AI toggle switch (in Power Control panel)
-- Status text: "Manual Control" / "AI Mode Active"
-- Temperature slider: Disabled when AI mode active
-- Visual feedback: Green text when AI active, gray when manual
+- LG Auto toggle switch (in Power Control panel)
+- Status text: "Manual Heating" / "LG Auto Mode"
+- Temperature slider: Visible in Manual Heating mode (33-50°C)
+- Offset controls: Visible in LG Auto mode (-5 to +5K)
+- Instant section switching: No 30s poll wait
 
 ## Modbus Register Mapping
 
