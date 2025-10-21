@@ -17,7 +17,7 @@ COPY monitor_and_keep_alive.py /app/
 
 # Copy application files
 COPY service/main.py service/scheduler.py /app/
-COPY service/heating_curve_config.json service/schedule.json /app/
+COPY service/config.json service/schedule.json /app/
 COPY service/start.sh /app/
 COPY service/healthcheck.sh /app/
 

@@ -149,7 +149,7 @@ The LG R290 Heat Pump Control System is a containerized, microservices-based arc
 - `service/modbus_client.py`: Modbus TCP client wrapper
 - `service/heating_curve.py`: Heating curve configuration and calculation
 - `service/adaptive_controller.py`: AI mode autonomous control loop
-- `service/heating_curve_config.json`: Heating curve configuration (user-editable)
+- `service/config.json`: Heating curve configuration (user-editable)
 - `service/Dockerfile`: Container build configuration
 
 **Configuration** (Environment Variables):
@@ -264,7 +264,7 @@ The LG R290 Heat Pump Control System is a containerized, microservices-based arc
 └─────────────────────────────────────────────────────────────┘
 ```
 
-**Configuration** (`heating_curve_config.json`):
+**Configuration** (`config.json`):
 ```json
 {
   "heating_curves": {

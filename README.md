@@ -179,7 +179,7 @@ AI Mode enables autonomous flow temperature optimization based on outdoor temper
    - Adjusts the heat pump if needed (threshold: 2°C)
    - Turns off the heat pump when outdoor temp ≥18°C
 
-**Heating Curves** (defined in `service/heating_curve_config.json`):
+**Heating Curves** (defined in `service/config.json`):
 
 | Target Room Temp | Curve | Outdoor < -10°C | -10°C to 0°C | 0°C to 10°C | 10°C to 18°C |
 |------------------|-------|-----------------|--------------|-------------|--------------|
@@ -187,7 +187,7 @@ AI Mode enables autonomous flow temperature optimization based on outdoor temper
 | 21-23°C | Comfort | 48°C | 45°C | 40°C | 35°C |
 | >23°C | High | 50°C | 47°C | 42°C | 37°C |
 
-**Configuration** (`service/heating_curve_config.json`):
+**Configuration** (`service/config.json`):
 ```json
 {
   "settings": {
@@ -205,7 +205,7 @@ AI Mode enables autonomous flow temperature optimization based on outdoor temper
 **Hot-Reload Configuration**:
 ```bash
 # Edit the configuration file
-nano service/heating_curve_config.json
+nano service/config.json
 
 # Reload without restarting
 curl -X POST http://localhost:8002/ai-mode/reload-config

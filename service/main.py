@@ -107,6 +107,33 @@ async def update_prometheus_metrics():
         await asyncio.sleep(30)  # Update every 30s
 
 
+async def set_lg_auto_mode_on_startup():
+    """
+    Set LG Auto mode (register 40001 = 3) as default on service startup.
+
+    This ensures the heat pump always starts in Auto mode regardless of the
+    previous state (e.g., after power outage, service restart, or manual mode change).
+    """
+    try:
+        # Wait a few seconds for Modbus connection to stabilize
+        await asyncio.sleep(3)
+
+        if not modbus_client:
+            logger.warning("Modbus client not connected - cannot set LG Auto mode on startup")
+            return
+
+        logger.info("Setting heat pump to LG Auto mode (register 40001 = 3)...")
+        success = await set_lg_mode(modbus_client, 3)
+
+        if success:
+            logger.info("✅ LG Auto mode set successfully on startup")
+        else:
+            logger.error("❌ Failed to set LG Auto mode on startup")
+
+    except Exception as e:
+        logger.error(f"Error setting LG Auto mode on startup: {e}")
+
+
 async def sync_lg_offset_on_startup(thermostat_api_url: str):
     """
     Sync LG Auto mode offset with current thermostat mode on service startup.
@@ -130,9 +157,9 @@ async def sync_lg_offset_on_startup(thermostat_api_url: str):
         logger.info(f"Current thermostat mode: {current_mode}")
 
         # Load LG offset configuration
-        config_file = Path("/app/heating_curve_config.json")
+        config_file = Path("/app/config.json")
         if not config_file.exists():
-            logger.warning("heating_curve_config.json not found - skipping LG offset sync")
+            logger.warning("config.json not found - skipping LG offset sync")
             return
 
         with open(config_file) as f:
@@ -193,6 +220,10 @@ async def lifespan(app: FastAPI):
 
     # Start Prometheus metrics updater
     asyncio.create_task(update_prometheus_metrics())
+
+    # Set LG Auto mode (3) as default on startup
+    logger.info("Setting LG Auto mode as default...")
+    asyncio.create_task(set_lg_auto_mode_on_startup())
 
     # Sync LG Auto offset with current thermostat mode on startup
     logger.info("Syncing LG Auto offset with thermostat mode...")
@@ -750,7 +781,7 @@ async def reload_schedule_config():
 
     **Use Case**: Frontend needs to know which offset to apply when thermostat mode changes.
 
-    **Configuration File**: `service/heating_curve_config.json` (lg_auto_offset section)
+    **Configuration File**: `service/config.json` (lg_auto_offset section)
 
     **Response**:
     - `enabled`: Whether auto offset adjustment is enabled
@@ -761,7 +792,7 @@ async def reload_schedule_config():
 )
 async def get_lg_auto_offset_config():
     """Get LG Auto offset configuration for frontend."""
-    config_file = Path("/app/heating_curve_config.json")
+    config_file = Path("/app/config.json")
 
     if not config_file.exists():
         raise HTTPException(status_code=503, detail="Configuration file not found")
