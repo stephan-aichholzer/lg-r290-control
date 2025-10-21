@@ -9,11 +9,10 @@ A Docker-based software stack for interfacing with an LG R290 7kW heat pump via 
 ## Features
 
 ### Core Functionality
-- **Mock Modbus Server**: JSON-backed Modbus TCP server for development and testing
 - **FastAPI Backend**: RESTful API for heat pump monitoring and control
 - **Responsive Web UI**: Dark mode HTML5 interface optimized for desktop and mobile kiosk mode
-- **Switchable Architecture**: Easy transition from mock to real hardware via configuration
-- **Containerized Deployment**: Docker Compose orchestration for all services
+- **Containerized Deployment**: Docker Compose orchestration
+- **Production Ready**: Deployed on real LG R290 hardware via Modbus TCP
 
 ### Web UI Features
 - **Dark Mode Design**: Pure black background with high contrast for OLED displays
@@ -29,30 +28,22 @@ A Docker-based software stack for interfacing with an LG R290 7kW heat pump via 
   - **Manual Heating Mode**: Direct flow temperature control (33-50°C) with slider
   - Instant UI response: Sections appear immediately when switching modes
   - Power ON/OFF control (read-only mode for safety)
-- **Room Thermostat Integration**:
-  - 4 operating modes: AUTO, ECO, ON, OFF
-  - Target temperature control (18-24°C, 0.5°C steps)
-  - Circulation pump status indicator
-  - 60-second polling interval
-  - Integrates with Shelly BT Thermostat API
+- **External Thermostat Integration** (via separate shelly_bt_temp project):
+  - Reads thermostat mode via API (ECO/AUTO/ON/OFF)
   - Automatic LG offset adjustment based on thermostat mode
-- **Scheduler (NEW)**:
-  - Time-based automatic room temperature control
-  - Week-based schedules (separate weekday/weekend patterns)
-  - Discrete event triggering at exact scheduled times
-  - Mode-aware: Only applies in AUTO/ON modes (respects ECO/OFF)
-  - Hot-reloadable configuration via API
-  - Vienna timezone with automatic DST handling
+  - No GUI controls (thermostat has its own UI)
+  - Backend-only integration for offset synchronization
 - **Kiosk Mode Optimized**: Perfect for wall-mounted mobile displays in landscape orientation
 - **Cross-Origin Support**: CORS-enabled for multi-service integration
 
 ## Architecture
 
-The system consists of three main services:
+The system consists of two main services:
 
-1. **heatpump-mock**: Simulates the LG R290 Modbus interface using pymodbus
-2. **heatpump-service**: FastAPI service with AsyncModbusTcpClient for Modbus communication
-3. **heatpump-ui**: Nginx-served HTML5 interface for visualization and control
+1. **heatpump-service**: FastAPI service with AsyncModbusTcpClient for Modbus communication
+2. **heatpump-ui**: Nginx-served HTML5 interface for visualization and control
+
+Connects to real LG R290 hardware via Waveshare RS485-to-Ethernet gateway.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed system design.
 
@@ -97,85 +88,48 @@ http://<raspberry-pi-ip>:8002/docs
 
 ## Usage
 
-### Testing with Mock Server
+### Production Deployment
 
-By default, the system runs with the mock Modbus server:
+The system is deployed in production and connects to real LG R290 hardware:
 
+1. Configure `.env` with your Waveshare gateway settings:
+```bash
+MODBUS_HOST=192.168.2.10    # Your Waveshare gateway IP
+MODBUS_PORT=8899            # Gateway Modbus port
+MODBUS_UNIT_ID=5            # LG heat pump device ID
+```
+
+2. Start services:
 ```bash
 docker-compose up -d
 ```
 
-The mock server loads initial register values from `mock/registers.json`. You can manually edit this file to simulate different heat pump states.
-
-### Switching to Real Hardware
-
-1. Stop the services:
-```bash
-docker-compose down
-```
-
-2. Edit `.env` and set your gateway IP address:
-```bash
-MODBUS_HOST=192.168.1.100  # Your Waveshare gateway IP
-MODBUS_PORT=502
-MODBUS_UNIT_ID=1
-```
-
-3. Comment out or remove the `heatpump-mock` service dependency in `docker-compose.yml`
-
-4. Restart services:
-```bash
-docker-compose up -d heatpump-service heatpump-ui
-```
-
 ### Thermostat Integration
 
-The UI integrates with the Shelly BT Thermostat Control API (separate project) for room temperature control. To enable this integration:
+This project integrates with the **shelly_bt_temp** project (separate repository) via API:
 
-1. Ensure the thermostat API is running at `http://192.168.2.11:8001` (or update `ui/config.js`)
+**What this project does**:
+- Reads thermostat mode from external API (`http://iot-api:8000`)
+- Automatically adjusts LG Auto mode offset based on thermostat mode
+- Backend-only integration (no thermostat GUI in this project)
 
-2. The thermostat API must have CORS enabled. Add to your thermostat's `main.py`:
-```python
-from fastapi.middleware.cors import CORSMiddleware
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+**Configuration**:
+```bash
+# In docker-compose.yml
+THERMOSTAT_API_URL=http://iot-api:8000  # Container name on Docker network
 ```
 
-3. Default thermostat parameters (set in `ui/config.js`):
-   - Hysteresis: 0.1°C
-   - Min ON time: 40 minutes
-   - Min OFF time: 10 minutes
-   - Temperature sample count: 4
-   - Control interval: 60 seconds
+**Offset Mapping** (configured in `service/config.json`):
+- ECO mode → -2K offset (energy saving)
+- AUTO mode → +2K offset (comfort)
+- ON mode → +2K offset (comfort)
+- OFF mode → -5K offset (minimal heating)
 
-4. The UI provides:
-   - 4 mode buttons (AUTO, ECO, ON, OFF)
-   - Target temperature control (18-24°C, 0.5°C steps)
-   - Circulation pump status indicator
-   - 60-second polling interval
+**Note**: The thermostat UI and control is handled by the shelly_bt_temp project, not this one.
 
-### AI Mode (Adaptive Heating Curve)
+### LG Mode Configuration
 
-AI Mode enables autonomous flow temperature optimization based on outdoor temperature and target room temperature using weather compensation heating curves.
-
-**How It Works:**
-
-1. **Enable AI Mode**: Toggle the Manual/AI switch in the Power Control panel
-2. **Automatic Operation**: Every 10 minutes, the system:
-   - Reads outdoor temperature from the heat pump
-   - Reads target room temperature from the thermostat
-   - Selects the appropriate heating curve (ECO/Comfort/High)
-   - Calculates optimal flow temperature
-   - Adjusts the heat pump if needed (threshold: 2°C)
-   - Turns off the heat pump when outdoor temp ≥18°C
-
-**LG Mode Configuration** (`service/config.json`):
+The system supports two operating modes (`service/config.json`):
 
 **LG Auto Mode Offset** - Adjusts LG's heating curve based on thermostat mode:
 ```json
@@ -208,16 +162,15 @@ AI Mode enables autonomous flow temperature optimization based on outdoor temper
 }
 ```
 
-**API Endpoints**:
+**Key API Endpoints**:
 - `GET /status` - Get heat pump status (includes current mode and temperatures)
 - `POST /lg-mode` - Switch modes: `{"mode": 3}` (Auto) or `{"mode": 4}` (Heating)
 - `POST /auto-mode-offset` - Set offset: `{"offset": 2}` (range: -5 to +5)
 - `POST /setpoint` - Set flow temperature: `{"temperature": 40.0}` (only in Heating mode)
-- `GET /lg-auto-offset-config` - Get offset configuration
 
 **Startup Behavior**:
 - Heat pump always starts in **LG Auto Mode (3)** on service startup
-- Default offset applied based on current thermostat mode
+- Offset automatically synced based on current thermostat mode
 - Ensures consistent behavior after power outages or restarts
 
 ## Configuration
@@ -232,11 +185,11 @@ AI Mode enables autonomous flow temperature optimization based on outdoor temper
 | `POLL_INTERVAL` | `5` | Polling interval in seconds |
 | `THERMOSTAT_API_URL` | `http://iot-api:8000` | Thermostat API base URL (Docker container name for AI Mode) |
 
-**Note for AI Mode Integration**:
+**Note for Thermostat Integration**:
 - The `THERMOSTAT_API_URL` should use the **Docker container name** (`iot-api`) not the host IP
 - Requires external network reference to the thermostat stack (see docker-compose.yml)
 - Example: `shelly_bt_temp_default` network must exist and be referenced
-- If thermostat API is unavailable, AI Mode falls back to default target temperature (21°C)
+- If thermostat API is unavailable, system uses default offset (0K)
 
 ### Modbus Registers
 
@@ -328,26 +281,22 @@ lg_r290_control/
 ├── .env.example
 ├── README.md
 ├── ARCHITECTURE.md
-├── LG_R290_register.pdf
-├── mock/
-│   ├── Dockerfile
-│   ├── modbus_server.py
-│   ├── registers.json
-│   └── requirements.txt
 ├── service/
 │   ├── Dockerfile
 │   ├── main.py
-│   ├── modbus_client.py
+│   ├── config.json          # LG mode configuration
+│   ├── schedule.json        # Scheduler configuration
 │   └── requirements.txt
 └── ui/
     ├── Dockerfile
     ├── index.html
-    ├── style.css
-    ├── app.js           # Main entry point
-    ├── config.js        # Configuration constants
-    ├── utils.js         # Shared utilities
-    ├── heatpump.js      # Heat pump control module
-    └── thermostat.js    # Thermostat control module
+    ├── static/
+    │   ├── style.css
+    │   ├── config.js        # API endpoints
+    │   ├── utils.js         # Shared utilities
+    │   ├── heatpump.js      # Heat pump control
+    │   └── thermostat.js    # Thermostat display
+    └── nginx.conf
 ```
 
 ### Viewing Logs
@@ -358,7 +307,6 @@ docker-compose logs -f
 
 # Specific service
 docker-compose logs -f heatpump-service
-docker-compose logs -f heatpump-mock
 docker-compose logs -f heatpump-ui
 ```
 
@@ -372,39 +320,26 @@ docker-compose build
 docker-compose build heatpump-service
 ```
 
-### Editing Mock Register Values
-
-The mock server uses `mock/registers.json` for register values mapped to the host filesystem.
-
-**Reading:** Edit the JSON file manually and restart the mock container to load new values:
-```bash
-# Edit mock/registers.json
-docker restart lg_r290_mock
-```
-
-**Writing:** Currently, writes from the API (power control, setpoint changes) update the mock server's internal state but are **not persisted** back to the JSON file automatically. This is a known limitation for testing. To test different states, manually edit the JSON file and restart the mock.
-
-For production use with real hardware, this limitation doesn't apply as the real heat pump maintains its own state.
-
 ## Troubleshooting
 
-### Cannot connect to Modbus server
+### Cannot connect to Modbus gateway
 
-1. Check if the mock server is running:
+1. Check if services are running:
 ```bash
 docker-compose ps
 ```
 
 2. Check logs:
 ```bash
-docker-compose logs heatpump-mock
 docker-compose logs heatpump-service
 ```
 
-3. Verify network connectivity:
+3. Verify gateway is reachable:
 ```bash
-docker-compose exec heatpump-service ping heatpump-mock
+ping 192.168.2.10  # Your gateway IP
 ```
+
+4. Check Modbus port (should be 8899 for Waveshare)
 
 ### UI shows "Disconnected"
 
@@ -427,10 +362,9 @@ curl http://localhost:8000/health
 
 ### Adding New Registers
 
-1. Add register definition to `mock/registers.json`
-2. Update `service/modbus_client.py` with new register addresses
-3. Add API endpoints in `service/main.py`
-4. Update UI in `ui/index.html`, `ui/style.css`, and `ui/app.js`
+1. Update `lg_r290_modbus.py` with new register addresses
+2. Add API endpoints in `service/main.py`
+3. Update UI in `ui/index.html` and `ui/static/*.js`
 
 ### Adding Features
 
@@ -443,9 +377,7 @@ The system is designed for easy extension:
 
 ## Version History
 
-See [CHANGELOG.md](CHANGELOG.md) for detailed version history.
-
-### v0.8 - Current (2025-10-10)
+### v1.0 - Current (2025-10-21)
 
 **Status**: Production ready with LG Auto mode and manual heating control
 
@@ -538,23 +470,18 @@ See [CHANGELOG.md](CHANGELOG.md) for detailed version history.
 - ✅ Smooth user interaction without update conflicts
 - ✅ Optimized landscape layout for mobile devices
 
-**Known Limitations:**
-- ⚠️ Mock server: Writes not persisted to JSON file (acceptable for testing)
-- ⚠️ Mock server: Some register values read as zero (Modbus addressing offset, mock-only)
-- ⚠️ API port 8002 (avoids Portainer conflict on 8000)
+**Production Status:**
+- ✅ Deployed on real LG R290 hardware via Waveshare RS485-to-Ethernet gateway
+- ✅ Multi-day stable operation verified
+- ✅ All register readings confirmed with actual heat pump
+- ✅ Production kiosk deployment complete
+- ✅ Prometheus metrics integration active
 
-**Testing Status:**
-- ✅ Tested with mock server - all functionality verified
-- ✅ UI tested on desktop and mobile browsers
-- ✅ Kiosk mode tested on mobile landscape
-- ✅ Real-time synchronization verified
-- ⚠️ Not yet tested with real LG R290 hardware
-
-**Next Steps:**
-1. Test with real LG R290 hardware via Waveshare gateway
-2. Verify all register readings with actual heat pump
-3. Deploy to production kiosk environment
-4. Consider data logging (InfluxDB) for historical trends
+**System Architecture:**
+- Real hardware via Modbus TCP (no mock server)
+- Waveshare gateway at 192.168.2.10:8899
+- LG R290 device ID: 5
+- Production monitoring and health checks
 
 ## Documentation
 
@@ -562,32 +489,25 @@ Comprehensive feature documentation is available in the `docs/` directory:
 
 ### Feature Documentation
 
-- **[Scheduler](docs/SCHEDULER.md)** - Time-based automatic temperature scheduling
+- **[Scheduler](docs/SCHEDULER.md)** - Time-based automatic room temperature scheduling
   - Week-based schedules (weekday/weekend patterns)
   - Discrete event triggering at exact times
   - Mode-aware operation (respects ECO/OFF)
   - Hot-reloadable configuration
   - Vienna timezone with DST support
+  - **Note**: Scheduler controls the thermostat (shelly_bt_temp project), not directly implemented in this project's UI
 
-- **[AI Mode](docs/AI_MODE.md)** - Adaptive heating curve control
-  - Autonomous weather compensation
-  - Three heating curves (ECO, Comfort, High Demand)
-  - Outdoor temperature-based optimization
-  - Thermostat integration for target room temp
-  - Configurable via JSON
-
-- **[Heat Pump Control](docs/HEAT_PUMP_CONTROL.md)** - Manual Modbus TCP control
+- **[Heat Pump Control](docs/HEAT_PUMP_CONTROL.md)** - LG Mode Modbus TCP control
   - Complete register mapping
-  - Power and temperature control
+  - LG Auto mode with offset control
+  - Manual Heating mode with temperature control
   - Real-time status monitoring
-  - Mock server for development
   - Hardware integration guide
 
-- **[Thermostat Integration](docs/THERMOSTAT_INTEGRATION.md)** - Room temperature control
-  - Cross-stack Docker communication
-  - Circulation pump control
-  - Mode management (AUTO/ECO/ON/OFF)
-  - Indoor/outdoor temperature sensors
+- **[Thermostat Integration](docs/THERMOSTAT_INTEGRATION.md)** - External API integration
+  - Cross-stack Docker communication with shelly_bt_temp project
+  - Automatic LG offset adjustment based on thermostat mode
+  - Backend-only integration (no thermostat UI in this project)
 
 ### System Documentation
 
@@ -607,12 +527,13 @@ Comprehensive feature documentation is available in the `docs/` directory:
 ### Architecture
 
 - **[ARCHITECTURE.md](ARCHITECTURE.md)** - System architecture overview
-- **[UML Diagrams](UML/)** - Sequence diagrams for all major flows
+- **[UML Diagrams](UML/)** - Sequence diagrams for major flows
   - Scheduler control flow
-  - AI Mode operation
+  - LG Mode control
   - Heat pump control
   - Thermostat integration
   - Network architecture
+  - Prometheus metrics
 
 ## License
 
@@ -620,9 +541,9 @@ This project is provided as-is for interfacing with LG R290 heat pumps.
 
 ## References
 
-- LG R290 Modbus Register Documentation: `LG_R290_register.pdf`
 - pymodbus Documentation: https://pymodbus.readthedocs.io/
 - FastAPI Documentation: https://fastapi.tiangolo.com/
+- Related project: [shelly_bt_temp](../shelly_bt_temp) - Thermostat control system
 
 ## Support
 
