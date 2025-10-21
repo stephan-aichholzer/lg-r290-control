@@ -294,8 +294,10 @@ GET /registers/raw
 
 **Controls:**
 - Power Switch: Toggle heat pump ON/OFF
-- Temperature Slider: Adjust target water temperature (33-50°C)
-  - Disabled when AI Mode active
+- LG Mode Toggle: Switch between Auto (3) and Manual Heating (4)
+- Auto Mode Offset: ±5K adjustment buttons (visible in Auto mode)
+- Temperature Slider: Adjust target flow temperature (33-50°C)
+  - Only visible in Manual Heating mode
   - Real-time value display
 
 ### Polling Behavior
@@ -582,7 +584,6 @@ curl http://localhost:8002/status | jq .
 
 ## Related Documentation
 
-- [AI Mode](AI_MODE.md) - Adaptive heating curve control (automatic)
 - [Scheduler](SCHEDULER.md) - Time-based room temperature scheduling
 - [Thermostat Integration](THERMOSTAT_INTEGRATION.md) - Room temperature control
 - [API Reference](API_REFERENCE.md) - Complete API documentation

@@ -32,23 +32,31 @@ curl -X POST http://localhost:8002/power \
   -d '{"power_on": true}'
 ```
 
-### Set Flow Temperature (Manual Mode)
+### Set Flow Temperature (Manual Heating Mode)
 ```bash
 curl -X POST http://localhost:8002/setpoint \
   -H "Content-Type: application/json" \
   -d '{"temperature": 35.0}'
 ```
 
-### Enable AI Mode
+### Set LG Mode (Auto/Heating)
 ```bash
-curl -X POST http://localhost:8002/ai-mode \
+# Switch to LG Auto mode
+curl -X POST http://localhost:8002/lg-mode \
   -H "Content-Type: application/json" \
-  -d '{"enabled": true}'
+  -d '{"mode": 3}'
+
+# Switch to Manual Heating mode
+curl -X POST http://localhost:8002/lg-mode \
+  -H "Content-Type: application/json" \
+  -d '{"mode": 4}'
 ```
 
-### Get AI Mode Status
+### Adjust Auto Mode Offset
 ```bash
-curl http://localhost:8002/ai-mode
+curl -X POST http://localhost:8002/auto-mode-offset \
+  -H "Content-Type: application/json" \
+  -d '{"offset": 2}'
 ```
 
 ### Get Scheduler Status
@@ -67,10 +75,9 @@ curl http://localhost:8002/schedule
 | `/status` | GET | Heat pump status | Heat Pump |
 | `/power` | POST | Control power ON/OFF | Heat Pump |
 | `/setpoint` | POST | Set flow temperature | Heat Pump |
+| `/lg-mode` | POST | Set LG mode (Auto=3, Heating=4) | Heat Pump |
+| `/auto-mode-offset` | POST | Adjust Auto mode offset (±5K) | Heat Pump |
 | `/registers/raw` | GET | Raw Modbus registers | Debug |
-| `/ai-mode` | GET | Get AI Mode status | AI Mode |
-| `/ai-mode` | POST | Enable/disable AI Mode | AI Mode |
-| `/ai-mode/reload-config` | POST | Reload heating curves | AI Mode |
 | `/schedule` | GET | Get scheduler status | Scheduler |
 | `/schedule/reload` | POST | Reload schedule config | Scheduler |
 
@@ -80,8 +87,7 @@ curl http://localhost:8002/schedule
 
 Endpoints are organized by tags:
 - **System**: Service health and info
-- **Heat Pump**: Direct heat pump control
-- **AI Mode**: Automatic flow temperature control
+- **Heat Pump**: Direct heat pump control (Manual and LG Auto modes)
 - **Scheduler**: Time-based scheduling
 - **Debug**: Low-level debugging tools
 
@@ -94,41 +100,39 @@ Endpoints are organized by tags:
 # Check health
 curl http://localhost:8002/health
 
-# Get current status
+# Get current status (includes mode, offset, temperatures)
 curl http://localhost:8002/status
-
-# Check AI Mode
-curl http://localhost:8002/ai-mode
 ```
 
-### 2. Manual Control
+### 2. LG Auto Mode Control
 ```bash
-# Disable AI Mode
-curl -X POST http://localhost:8002/ai-mode \
-  -d '{"enabled": false}'
+# Switch to LG Auto mode
+curl -X POST http://localhost:8002/lg-mode \
+  -d '{"mode": 3}'
 
-# Set temperature manually
+# Adjust offset to make it warmer
+curl -X POST http://localhost:8002/auto-mode-offset \
+  -d '{"offset": 2}'
+
+# LG heat pump now controls flow temp using:
+# - Internal heating curve
+# - Outdoor temperature
+# - +2K offset adjustment
+```
+
+### 3. Manual Heating Mode
+```bash
+# Switch to Manual Heating mode
+curl -X POST http://localhost:8002/lg-mode \
+  -d '{"mode": 4}'
+
+# Set specific flow temperature
 curl -X POST http://localhost:8002/setpoint \
   -d '{"temperature": 40.0}'
 ```
 
-### 3. Automatic Control (AI Mode)
-```bash
-# Enable AI Mode
-curl -X POST http://localhost:8002/ai-mode \
-  -d '{"enabled": true}'
-
-# System now automatically adjusts based on:
-# - Outdoor temperature
-# - Room temperature
-# - Heating curve
-```
-
 ### 4. Configuration Management
 ```bash
-# Reload heating curves (no restart needed)
-curl -X POST http://localhost:8002/ai-mode/reload-config
-
 # Reload schedule (no restart needed)
 curl -X POST http://localhost:8002/schedule/reload
 ```
@@ -193,6 +197,6 @@ For detailed endpoint descriptions, request/response schemas, and examples:
 
 For feature-specific documentation:
 - [Scheduler Documentation](./SCHEDULER.md)
-- [AI Mode Documentation](./AI_MODE.md)
 - [Heat Pump Control](./HEAT_PUMP_CONTROL.md)
 - [Deployment Guide](./DEPLOYMENT.md)
+- [Thermostat Integration](./THERMOSTAT_INTEGRATION.md)

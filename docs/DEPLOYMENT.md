@@ -158,7 +158,7 @@ volumes:
 ### Service Configuration (Implicit)
 
 Configuration files copied into container:
-- `service/heating_curve_config.json` → `/app/heating_curve_config.json`
+- `service/config.json` → `/app/config.json`
 - `service/schedule.json` → `/app/schedule.json`
 
 **To update**: Rebuild container after editing.
@@ -341,7 +341,7 @@ docker logs lg_r290_service | grep "error\|ERROR"
 ```bash
 # Backup config files
 tar -czf lg-r290-backup.tar.gz \
-  service/heating_curve_config.json \
+  service/config.json \
   service/schedule.json \
   mock/registers.json \
   .env \
@@ -483,7 +483,6 @@ docker-compose logs -f
 ## Related Documentation
 
 - [Scheduler](SCHEDULER.md) - Configure schedules
-- [AI Mode](AI_MODE.md) - Configure heating curves
 - [Heat Pump Control](HEAT_PUMP_CONTROL.md) - Modbus setup
 - [Thermostat Integration](THERMOSTAT_INTEGRATION.md) - Network configuration
 - [API Reference](API_REFERENCE.md) - API endpoints

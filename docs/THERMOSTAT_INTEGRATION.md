@@ -25,9 +25,9 @@ The thermostat integration connects the heat pump control system with an externa
 
 ## Integration Points
 
-### 1. AI Mode Integration
+### 1. LG Auto Mode Offset Integration
 
-AI Mode reads target room temperature from thermostat to select appropriate heating curve:
+The system adjusts LG Auto mode offset based on thermostat mode:
 
 ```python
 # GET http://iot-api:8000/api/v1/thermostat/status
@@ -36,13 +36,14 @@ response = {
   "switch_state": true  # Pump running
 }
 
-# AI Mode uses target_temp to select curve:
-# ≤21°C → ECO curve
-# 21-23°C → Comfort curve
-# >23°C → High Demand curve
+# Auto mode offset adjustment based on mode:
+# ECO → -2K (energy saving)
+# AUTO → +2K (comfort)
+# ON → +2K (comfort)
+# OFF → -5K (minimal heating)
 ```
 
-**Fallback**: If thermostat unavailable, uses default 21°C (ECO curve).
+**Note**: This adjusts register 40005 (LG Auto mode offset) when LG mode is set to Auto (register 40001 = 3).
 
 ### 2. Scheduler Integration
 
@@ -289,16 +290,16 @@ Time: 22:00
 6. Pump turns OFF (target reached)
 ```
 
-### AI Mode with Thermostat
+### LG Auto Mode with Thermostat
 
 ```
-Outdoor: 5°C, Target Room: 21.5°C
-1. AI Mode reads target from thermostat: 21.5°C
-2. Selects Comfort curve (21-23°C)
-3. Calculates flow temp: 40°C
-4. Sets heat pump water temp: 40°C
+Outdoor: 5°C, Thermostat Mode: AUTO
+1. System detects thermostat mode: AUTO
+2. Sets LG Auto mode offset: +2K (from config)
+3. LG heat pump calculates base flow temp from outdoor temp
+4. Applies offset: final temp = base + 2K
 5. Thermostat independently controls pump based on room temp
-6. Result: Optimal water temp + accurate room temp control
+6. Result: LG heating curve + offset adjustment + room temp control
 ```
 
 ## Troubleshooting
@@ -318,9 +319,9 @@ docker exec lg_r290_service curl http://iot-api:8000/api/v1/thermostat/status
 
 **Solution**: Verify `shelly_bt_temp_default` network exists and is external in docker-compose.yml.
 
-### AI Mode Using Fallback Temperature
+### Auto Mode Offset Not Applying
 
-**Symptom**: AI Mode logs show "Using fallback target temp: 21.0°C"
+**Symptom**: Offset doesn't change based on thermostat mode
 
 **Check thermostat:**
 ```bash
@@ -331,8 +332,9 @@ curl http://192.168.2.11:8001/api/v1/thermostat/status
 - Thermostat service not running
 - Network configuration incorrect
 - Wrong THERMOSTAT_API_URL
+- LG mode not set to Auto (register 40001 must be 3)
 
-**Result**: AI Mode still works, but uses ECO curve (conservative heating).
+**Result**: System uses default offset (0K) until thermostat connection restored.
 
 ### Pump Not Responding to Temperature Changes
 
@@ -365,7 +367,6 @@ Look for: "Schedule skipped: current mode is ECO"
 ## Related Documentation
 
 - [Scheduler](SCHEDULER.md) - Time-based room temperature scheduling
-- [AI Mode](AI_MODE.md) - Adaptive heating curve control
-- [Heat Pump Control](HEAT_PUMP_CONTROL.md) - Manual water temperature control
+- [Heat Pump Control](HEAT_PUMP_CONTROL.md) - LG Mode water temperature control
 - [Deployment](DEPLOYMENT.md) - Docker network setup
 - [API Reference](API_REFERENCE.md) - Complete API documentation

@@ -385,6 +385,6 @@ Scheduler logs are prefixed with `scheduler`:
 ## Related Documentation
 
 - [Thermostat Integration](THERMOSTAT_INTEGRATION.md) - Room temperature control
-- [AI Mode](AI_MODE.md) - Adaptive heating curve (water temp control)
+- [Heat Pump Control](HEAT_PUMP_CONTROL.md) - LG Mode control (water temp)
 - [API Reference](API_REFERENCE.md) - Complete API documentation
 - [Deployment](DEPLOYMENT.md) - Docker setup and environment variables

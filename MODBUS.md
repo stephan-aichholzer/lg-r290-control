@@ -228,34 +228,25 @@ SUMMARY - LG Therma V Status
 ⚠️ **Solar collector:** Showing 300°C (not connected)
 ⚠️ **Circuit 2:** Not configured (monobloc system uses only circuit 1)
 
-## Next Steps
+## Current Status
 
-### Phase 1: Extended Read-Only Monitoring (Current)
-- ✅ Register mapping confirmed
+### Production Deployment (v1.0)
+- ✅ Register mapping confirmed and documented
 - ✅ Shared gateway timeout solution implemented
-- 🔄 24-hour stability monitoring (pending)
-- 🔄 Verify outdoor temperature tracking
-- 🔄 Log any timeout or communication errors
+- ✅ Write operations tested and working
+- ✅ LG Mode control (Auto/Heating) operational
+- ✅ Auto mode offset adjustment (±5K) working
+- ✅ Production monitoring via Prometheus/Grafana
+- ✅ Stable multi-day operation achieved
+- ✅ Error recovery and retry logic proven
 
-### Phase 2: Write Operations Testing
-- Test setpoint changes (register 40003)
-- Test power control (coil 00001)
-- Verify changes take effect
-- Monitor for any side effects
-- Test error recovery
-
-### Phase 3: Full Integration
-- Update Docker configuration for real hardware
-- Switch from mock server to real gateway
-- Enable AI Mode with real outdoor temperature
-- Enable Scheduler with real power control
-- 48-hour production monitoring
-
-### Phase 4: Production Release
-- Merge `feature/hw-integration` → `master`
-- Create v1.1.0 release tag
-- Update documentation
-- Deploy to production
+### System Features
+- ✅ LG Auto Mode (register 40001 = 3) with offset control
+- ✅ Manual Heating Mode (register 40001 = 4) with temperature setpoint
+- ✅ Power control (coil 00001)
+- ✅ Scheduler integration
+- ✅ Thermostat integration
+- ✅ Read-only safety mode option
 
 ## Key Registers for Our Application
 
@@ -270,8 +261,9 @@ SUMMARY - LG Therma V Status
 
 ### Write Operations (Control)
 - **00001** - Power ON/OFF (coil)
-- **40003** - Target Flow Temperature (holding register)
-- **40001** - Operating Mode (holding register, currently fixed at 4=Heating)
+- **40001** - Operating Mode (3=Auto, 4=Heating)
+- **40003** - Target Flow Temperature (holding register, used in Heating mode)
+- **40005** - Auto Mode Offset ±5K (holding register, used in Auto mode)
 
 ## Configuration
 
@@ -361,6 +353,6 @@ POLL_INTERVAL=5            # 5 seconds
 
 ---
 
-**Last Updated:** 2025-10-12
-**Branch:** feature/hw-integration
-**Status:** Phase 1 - Read-only testing complete, awaiting extended monitoring
+**Last Updated:** 2025-10-21
+**Branch:** master
+**Status:** v1.0 - Production system with LG Mode Control

@@ -6,13 +6,13 @@ This folder contains PlantUML sequence diagrams documenting all major use cases 
 
 | Diagram | Description | Key Actors |
 |---------|-------------|------------|
-| **01_manual_control.puml** | Manual temperature setpoint adjustment | User, UI, API, Modbus, Heat Pump |
-| **02_ai_mode_control.puml** | AI Mode adaptive heating control loop | AI Controller, Heating Curve, Thermostat API |
+| **01_manual_control.puml** | Manual temperature setpoint adjustment (Heating mode) | User, UI, API, Modbus, Heat Pump |
+| **02_ai_mode_control.puml** | ⚠️ OBSOLETE - AI Mode removed in v1.0 | N/A |
 | **03_power_control.puml** | Heat pump power ON/OFF control | User, UI, API, Modbus |
 | **04_startup_initialization.puml** | Docker Compose stack startup sequence | Docker, All Services |
 | **05_thermostat_integration.puml** | Thermostat integration and cross-stack communication | UI, API, Thermostat, Sensor |
-| **06_config_reload.puml** | Hot-reload configuration without restart | Admin, API, Heating Curve |
-| **07_error_handling.puml** | Error scenarios and recovery strategies | AI Controller, All Services |
+| **06_config_reload.puml** | ⚠️ OBSOLETE - Config reload removed with AI Mode | N/A |
+| **07_error_handling.puml** | Error scenarios and recovery strategies | Monitor Daemon, All Services |
 | **08_network_architecture.puml** | Docker network topology and communication paths | All Services, Networks |
 | **09_scheduler_control.puml** | Time-based automatic temperature scheduling | Scheduler, Thermostat API, schedule.json |
 | **10_lg_auto_mode_offset.puml** | LG Auto mode temperature offset adjustment (±5K) | User, UI, API, Modbus, Heat Pump |
@@ -32,20 +32,11 @@ This folder contains PlantUML sequence diagrams documenting all major use cases 
 - `GET /status` - Retrieve current device state
 - `POST /setpoint` - Set target temperature
 
-### 2. AI Mode Control (`02_ai_mode_control.puml`)
-**Scenario**: Autonomous temperature optimization based on outdoor and room temperature
-- User enables AI Mode toggle
-- Background control loop (every 30 seconds)
-- Read outdoor temp from heat pump
-- Read target room temp from thermostat API
-- Calculate optimal flow temperature using heating curves
-- Adjust heat pump if needed (threshold: 2°C)
-- Automatic shutdown when outdoor ≥18°C
-
-**Key Endpoints**:
-- `POST /ai-mode` - Enable/disable AI Mode
-- `GET /ai-mode` - Get AI Mode status
-- `GET /api/v1/thermostat/status` - Thermostat API (external)
+### 2. AI Mode Control (`02_ai_mode_control.puml`) ⚠️ OBSOLETE
+**Status**: This diagram is obsolete - AI Mode was removed in v1.0
+**Replaced by**: LG Mode Control (see diagram 10)
+- Use LG Auto mode (register 40001 = 3) instead
+- Adjust offset via register 40005 (±5K)
 
 ### 3. Power Control (`03_power_control.puml`)
 **Scenario**: User turns heat pump ON or OFF
@@ -86,26 +77,19 @@ This folder contains PlantUML sequence diagrams documenting all major use cases 
 - Browser → Thermostat: Direct LAN access
 - Container → Thermostat: Via `shelly_bt_temp_default` external network
 
-### 6. Configuration Hot-Reload (`06_config_reload.puml`)
-**Scenario**: Admin updates heating curve configuration without restarting service
-- Edit `heating_curve_config.json` on host
-- File visible in container via volume mount
-- API endpoint triggers reload
-- Configuration validation
-- New parameters take effect immediately
-- No service interruption
-
-**Key Endpoints**:
-- `POST /ai-mode/reload-config` - Hot-reload configuration
+### 6. Configuration Hot-Reload (`06_config_reload.puml`) ⚠️ OBSOLETE
+**Status**: This diagram is obsolete - Config hot-reload was removed with AI Mode in v1.0
+**Current approach**:
+- Schedule config can be reloaded: `POST /schedule/reload`
+- LG Mode config requires container rebuild (no hot-reload)
 
 ### 7. Error Handling (`07_error_handling.puml`)
 **Scenario**: Various failure modes and recovery strategies
 - Heat pump connection lost → retry automatically
-- Thermostat API unavailable → fallback to default (21°C)
-- Invalid heating curve configuration → keep old config
+- Thermostat API unavailable → use default offset (0K)
 - Modbus write failure → retry next cycle
 - Power control failure → skip adjustment
-- Control loop exceptions → graceful degradation
+- Monitor daemon crash → supervision loop restarts
 
 **Recovery Strategy**:
 - Never crash entire service
@@ -113,6 +97,7 @@ This folder contains PlantUML sequence diagrams documenting all major use cases 
 - Use fallback values when possible
 - Automatic retry on next cycle
 - Graceful degradation
+- Health checks and auto-restart
 
 ### 8. Network Architecture (`08_network_architecture.puml`)
 **Scenario**: Docker multi-stack communication topology
@@ -262,10 +247,11 @@ docker run -v $(pwd)/UML:/data plantuml/plantuml:latest -tpng /data/*.puml
 
 - [ARCHITECTURE.md](../ARCHITECTURE.md) - System architecture overview
 - [README.md](../README.md) - User guide and setup instructions
-- [CHANGELOG.md](../CHANGELOG.md) - Version history and changes
 
 ## Version
 
-**Diagrams Version**: v0.9.0
-**Last Updated**: 2025-10-18
-**Corresponds to**: Prometheus metrics integration and LG Auto mode offset support
+**Diagrams Version**: v1.0
+**Last Updated**: 2025-10-21
+**Corresponds to**: LG Mode Control system (AI Mode removed)
+
+**Note**: Diagrams 02 and 06 are obsolete and marked as such. They remain for historical reference but do not reflect current system behavior.
