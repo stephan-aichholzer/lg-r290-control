@@ -1,6 +1,6 @@
 // Heat Pump Control Module
 import { CONFIG } from './config.js';
-import { updateGauge, updateConnectionStatus, apiRequest } from './utils.js';
+import { updateGauge, updateConnectionStatus, apiRequest, showConfirmModal } from './utils.js';
 
 // State
 let updateTimer = null;
@@ -305,6 +305,38 @@ function updateUI(data) {
  */
 async function setPower(powerOn) {
     try {
+        // Modern modal confirmation for both ON and OFF
+        let confirmed;
+        if (powerOn) {
+            confirmed = await showConfirmModal(
+                'Turn ON Heat Pump?',
+                'The heat pump will be powered on and switched to LG Auto mode.'
+            );
+        } else {
+            confirmed = await showConfirmModal(
+                'Turn OFF Heat Pump?',
+                'This will stop heating. The system will remain off until manually restarted.'
+            );
+        }
+
+        if (!confirmed) {
+            // User cancelled - revert switch
+            elements.powerSwitch.checked = !powerOn;
+            return;
+        }
+
+        // User confirmed - keep switch in new position and update badges immediately
+        elements.powerSwitch.checked = powerOn;
+
+        // Optimistic UI update for status badges
+        const newPowerText = powerOn ? 'ON' : 'OFF';
+        elements.powerStatus.textContent = newPowerText;
+        if (powerOn) {
+            elements.powerDot.classList.add('on');
+        } else {
+            elements.powerDot.classList.remove('on');
+        }
+
         const result = await apiRequest(`${CONFIG.HEATPUMP_API_URL}/power`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -312,10 +344,19 @@ async function setPower(powerOn) {
         });
 
         console.log('Power set:', result);
+
+        // When turning ON, switch to LG Auto mode
+        if (powerOn) {
+            console.log('Heat pump turned ON - switching to LG Auto mode');
+            await setLGMode(3); // 3 = Auto mode
+        }
+
         setTimeout(updateStatus, 500);
     } catch (error) {
         console.error('Failed to set power:', error);
         alert('Failed to set power state');
+        // Revert switch on error
+        elements.powerSwitch.checked = !powerOn;
     }
 }
 

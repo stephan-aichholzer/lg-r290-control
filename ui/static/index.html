@@ -10,6 +10,22 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
+    <!-- Confirmation Modal -->
+    <div class="modal-overlay" id="modal-overlay">
+        <div class="modal-dialog">
+            <div class="modal-header">
+                <h3 id="modal-title">Confirm Action</h3>
+            </div>
+            <div class="modal-body">
+                <p id="modal-message">Are you sure?</p>
+            </div>
+            <div class="modal-footer">
+                <button class="modal-btn modal-btn-cancel" id="modal-cancel">Cancel</button>
+                <button class="modal-btn modal-btn-confirm" id="modal-confirm">Confirm</button>
+            </div>
+        </div>
+    </div>
+
     <div class="container">
         <main>
             <!-- Left Panel: Power Control -->

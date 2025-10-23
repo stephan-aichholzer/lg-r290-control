@@ -73,3 +73,58 @@ export async function apiRequest(url, options = {}) {
         throw error;
     }
 }
+
+/**
+ * Show modern confirmation modal dialog
+ * @param {string} title - Dialog title
+ * @param {string} message - Dialog message
+ * @returns {Promise<boolean>} True if confirmed, false if cancelled
+ */
+export function showConfirmModal(title, message) {
+    return new Promise((resolve) => {
+        const overlay = document.getElementById('modal-overlay');
+        const titleEl = document.getElementById('modal-title');
+        const messageEl = document.getElementById('modal-message');
+        const confirmBtn = document.getElementById('modal-confirm');
+        const cancelBtn = document.getElementById('modal-cancel');
+
+        // Set content
+        titleEl.textContent = title;
+        messageEl.textContent = message;
+
+        // Show modal
+        overlay.classList.add('active');
+
+        // Handle confirm
+        const handleConfirm = () => {
+            cleanup();
+            resolve(true);
+        };
+
+        // Handle cancel
+        const handleCancel = () => {
+            cleanup();
+            resolve(false);
+        };
+
+        // Handle click outside
+        const handleOverlayClick = (e) => {
+            if (e.target === overlay) {
+                handleCancel();
+            }
+        };
+
+        // Cleanup function
+        const cleanup = () => {
+            overlay.classList.remove('active');
+            confirmBtn.removeEventListener('click', handleConfirm);
+            cancelBtn.removeEventListener('click', handleCancel);
+            overlay.removeEventListener('click', handleOverlayClick);
+        };
+
+        // Attach event listeners
+        confirmBtn.addEventListener('click', handleConfirm);
+        cancelBtn.addEventListener('click', handleCancel);
+        overlay.addEventListener('click', handleOverlayClick);
+    });
+}

@@ -519,11 +519,9 @@ async def set_power_endpoint(control: PowerControl):
         raise HTTPException(status_code=503, detail="Modbus client not connected")
 
     try:
-        # READ-ONLY MODE: Modbus write disabled
-        # success = await set_power(modbus_client, control.power_on)
-        success = False  # Disabled
-        if False and success:
-            logger.info(f"Heat pump power set to {'ON' if control.power_on else 'OFF'} via API")
+        success = await set_power(modbus_client, control.power_on)
+        if success:
+            logger.info(f"🔌 Heat pump power set to {'ON' if control.power_on else 'OFF'} via API")
             return {"status": "success", "power_on": control.power_on}
         else:
             raise HTTPException(status_code=500, detail="Failed to set power state")
