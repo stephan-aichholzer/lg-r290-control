@@ -267,41 +267,14 @@ docker-compose build heatpump-service
 
 ## Troubleshooting
 
-### Cannot connect to Modbus gateway
+For comprehensive troubleshooting guides covering:
+- Connection issues (Modbus, Docker, Network)
+- Heat pump control problems
+- Scheduler not working
+- Hardware integration issues
+- Diagnostic commands
 
-1. Check if services are running:
-```bash
-docker-compose ps
-```
-
-2. Check logs:
-```bash
-docker-compose logs heatpump-service
-```
-
-3. Verify gateway is reachable:
-```bash
-ping 192.168.2.10  # Your gateway IP
-```
-
-4. Check Modbus port (should be 8899 for Waveshare)
-
-### UI shows "Disconnected"
-
-1. Check if the API service is running:
-```bash
-curl http://localhost:8000/health
-```
-
-2. Check browser console for CORS errors
-3. Verify API_URL in `ui/app.js` matches your setup
-
-### Real hardware not responding
-
-1. Verify gateway IP address and port
-2. Check network connectivity to the gateway
-3. Ensure DIP switches on LG R290 are set correctly (SW1-1: ON, SW1-2: ON)
-4. Verify Modbus parameters: 9600 bps, 1 stop bit, no parity
+See [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md).
 
 ## Extension
 

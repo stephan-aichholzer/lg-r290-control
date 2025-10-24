@@ -480,9 +480,81 @@ docker-compose up -d
 docker-compose logs -f
 ```
 
+## Logging & Monitoring
+
+### Log Management Script
+
+The `./logs.sh` script provides convenient log management:
+
+```bash
+./logs.sh              # Tail all logs
+./logs.sh tail service # Tail API only
+./logs.sh dump         # Dump all to console
+./logs.sh save         # Save to timestamped folder
+./logs.sh errors       # Show only errors/warnings
+./logs.sh search "AI"  # Search for pattern
+./logs.sh stats        # Show statistics
+./logs.sh help         # Show help
+```
+
+### Live Monitoring Script
+
+The `./monitor.sh` script provides live monitoring dashboard:
+
+```bash
+./monitor.sh           # Full dashboard (refreshes every 5s)
+./monitor.sh temps     # Temperature monitoring
+./monitor.sh ai        # AI Mode status
+./monitor.sh once      # One-time snapshot
+./monitor.sh containers# Container status
+./monitor.sh help      # Show help
+```
+
+### Common Usage
+
+```bash
+# Check what's happening
+./monitor.sh once
+
+# Watch logs live
+./logs.sh tail service
+
+# Find issues
+./logs.sh errors
+
+# Search for something
+./logs.sh search "temperature"
+./logs.sh search "Modbus"
+
+# Save logs for analysis
+./logs.sh save
+
+# Monitor temperatures
+./monitor.sh temps
+```
+
+### Traditional Docker Commands
+
+```bash
+docker-compose ps              # Container status
+docker-compose logs -f         # Follow all logs
+docker stats                   # Resource usage
+docker-compose restart         # Restart services
+```
+
+### Log Levels
+
+- **INFO** - Normal operations
+- **WARNING** - Recoverable issues
+- **ERROR** - Failures
+- **DEBUG** - Detailed info (set LOG_LEVEL=DEBUG)
+
+---
+
 ## Related Documentation
 
 - [Scheduler](SCHEDULER.md) - Configure schedules
 - [Heat Pump Control](HEAT_PUMP_CONTROL.md) - Modbus setup
 - [Thermostat Integration](THERMOSTAT_INTEGRATION.md) - Network configuration
 - [API Reference](API_REFERENCE.md) - API endpoints
+- [Troubleshooting](TROUBLESHOOTING.md) - Common issues and solutions
