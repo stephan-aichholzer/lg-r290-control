@@ -925,26 +925,343 @@ This journey taught us that modern "smart" devices often have hidden requirement
 - ✅ Automatic error recovery and reconnection
 - ✅ Health checks and supervision
 
-**Not Quite There Yet (The Dream):**
-- ⏳ Full write access (currently read-only for safety)
-- ⏳ AI Mode dynamic control (disabled in read-only)
+**What's Next? (The Dream List):**
 - ⏳ Automated testing suite
 - ⏳ Home Assistant integration
 - ⏳ Efficiency analytics (COP calculation)
+- ⏳ Advanced heating curves
+- ⏳ Solar PV optimization
 
-**But we're 90% there!** The hard parts are solved:
+**But we're already at 95%!** The hard parts are DONE:
 - Continuous polling requirement ✓
 - Register mapping ✓
 - Error handling ✓
 - Production infrastructure ✓
 - Monitoring ✓
-
-*The journey was frustrating. The solution was simple. The learning was priceless.*
-*And the documentation is comprehensive enough that future-us won't be lost!*
+- **Full write access ✓ (enabled!)**
+- **Scheduler integration ✓ (offset automation!)**
+- **LG Auto mode control ✓ (offset scheduling!)**
 
 ---
 
-*Generated with a mix of frustration, determination, and ultimately joy.*
-*May your Modbus communications be stable and your registers always readable.*
+## Chapter 17: The Scheduler Awakening
 
-🔥 Happy Heating! 🔥
+*"What if we could automatically adjust the heat pump's response throughout the day?"*
+
+After discovering LG Auto mode offset (register 40005), we had a revelation: What if the **scheduler** could set both thermostat temperature AND heat pump offset at scheduled times?
+
+### The Use Case (Real User Insight!)
+
+A wise user observed after 2 months of operation:
+
+*"I don't want to control room temperature directly. By changing flow temperature, I can control how FAST the system responds to the thermostat. In the morning, I want FAST heating with warm radiators - I'm a monk about this! But during the day, I can relax the response time with lower flow temp while still maintaining target temperature."*
+
+**Brilliant!** This is thermodynamically sound:
+- **Higher flow temp** (+3K offset) = Faster heat transfer = Room heats quickly + radiators feel warm
+- **Lower flow temp** (-1K offset) = Slower heat transfer = More efficient COP + longer runtime
+
+### The Implementation
+
+Enhanced scheduler to control BOTH APIs:
+1. **Thermostat API** - Sets room temperature target
+2. **Heat Pump API** - Sets LG Auto mode offset
+
+```json
+{
+  "schedules": [{
+    "days": ["monday", "tuesday", "wednesday", "thursday", "friday"],
+    "periods": [
+      {"time": "05:00", "target_temp": 22.2, "auto_offset": 3},   // Fast warm-up!
+      {"time": "09:00", "target_temp": 21.5, "auto_offset": 0},   // Efficient daytime
+      {"time": "17:00", "target_temp": 22.0, "auto_offset": 1},   // Gentle evening
+      {"time": "22:00", "target_temp": 21.5, "auto_offset": -1}   // Economical night
+    ]
+  }]
+}
+```
+
+### The Magic
+
+**Morning 05:00:**
+```
+Scheduler triggers:
+├─ Thermostat → 22.2°C (room target)
+└─ Heat Pump → +3K offset (high flow temp for fast response)
+
+Result: Room reaches 22.2°C FAST with warm radiators
+```
+
+**Daytime 09:00:**
+```
+Scheduler triggers:
+├─ Thermostat → 21.5°C (room target)
+└─ Heat Pump → 0K offset (normal flow temp for efficiency)
+
+Result: Room maintains 21.5°C efficiently with gentle heating
+```
+
+### Testing Results
+
+**2025-10-24 05:00:48** - First successful automated offset change:
+```
+scheduler - INFO - Schedule match: friday 05:00 → 22.2°C, auto_offset: +3K
+scheduler - INFO - Setting LG Auto mode offset to +3K via heat pump API
+lg_r290_modbus - INFO - Auto mode offset set to +3K (register value: 3)
+scheduler - INFO - ✓ LG Auto mode offset set to +3K
+```
+
+**Perfect execution!** The scheduler now automatically:
+- Sets room temperature targets (comfort)
+- Adjusts flow temperature response (physics)
+- Balances comfort vs efficiency by time of day
+
+### The Volume Mount Enhancement
+
+Also improved the deployment:
+```yaml
+volumes:
+  - ./service/schedule.json:/app/schedule.json:ro
+```
+
+**Benefit:** Edit schedule.json on host → restart service → changes applied (no rebuild!)
+
+### Why This Is Genius
+
+The user's insight unlocked a whole new dimension of control:
+
+**Traditional thermostat thinking:**
+- Set room temp → wait for system to respond
+- No control over HOW FAST it responds
+
+**Flow temperature scheduling:**
+- Set room temp → ALSO set response speed
+- Morning: "Get warm FAST" (+3K)
+- Day: "Be efficient" (0K)
+- Evening: "Gentle comfort" (+1K)
+- Night: "Minimal heating" (-1K)
+
+It's like having a "priority mode" for heating:
+- **Comfort Priority** (morning): High flow temp, fast response
+- **Efficiency Priority** (daytime): Low flow temp, gentle response
+- **Balanced** (evening): Medium flow temp, moderate response
+
+**Lesson 15:** Sometimes the best features come from users describing their real-world needs. This wasn't in the original plan - it emerged from actual usage experience!
+
+---
+
+## Chapter 18: The Journey's End (Or Is It?)
+
+*"I think we're running out of refactoring and design ideas..."*
+
+After weeks of development, debugging, optimization, and countless "one more feature" moments, we've reached a natural stopping point. Not because the system is perfect, but because it's **complete**.
+
+### What We Built (The Full Stack)
+
+**Infrastructure:**
+- ✅ Docker Compose orchestration
+- ✅ FastAPI REST API with OpenAPI docs
+- ✅ Responsive dark mode web UI
+- ✅ Background monitor daemon (30s polling)
+- ✅ Health checks and auto-restart
+- ✅ Volume-mounted configs (hot-reload capable)
+
+**Monitoring & Integration:**
+- ✅ Prometheus metrics export (10+ metrics)
+- ✅ Grafana dashboard integration
+- ✅ Cross-stack Docker networking (3 networks!)
+- ✅ External thermostat API integration
+- ✅ Multi-browser GUI synchronization
+
+**Heat Pump Control:**
+- ✅ LG Auto mode with offset control (±5K)
+- ✅ Manual Heating mode with temperature control
+- ✅ Power ON/OFF with confirmation modals
+- ✅ Mode switching with instant UI feedback
+- ✅ Startup automation (always LG Auto mode)
+- ✅ Register 40005 offset sync across browsers
+
+**Scheduler Features:**
+- ✅ Time-based room temperature scheduling
+- ✅ **NEW: LG Auto mode offset scheduling**
+- ✅ Weekday/weekend patterns
+- ✅ Mode-aware operation (respects ECO/OFF)
+- ✅ Dual API integration (thermostat + heat pump)
+- ✅ Vienna timezone with DST support
+
+**Documentation:**
+- ✅ 11 UML sequence diagrams
+- ✅ 10+ comprehensive documentation files
+- ✅ Complete API reference
+- ✅ Architecture overview
+- ✅ **THIS EPIC JOURNEY DOCUMENT**
+
+### The Numbers (Final Stats)
+
+**Development Time:**
+- Initial Modbus debugging: ~4 days (October 2024)
+- Production system build: ~2 weeks (October 2024)
+- Scheduler enhancement: 1 day (October 2025)
+- **Total time invested: ~3 weeks of focused work**
+
+**Code Metrics:**
+- Python backend: ~4,000 lines
+- JavaScript frontend: ~1,500 lines
+- Documentation: ~15,000 words
+- UML diagrams: 11 sequence diagrams
+- Docker containers: 3 services
+- Git commits: 50+ on master
+- Feature branches: 3 merged
+
+**Production Stats:**
+- Uptime: Days without restart ✨
+- Error rate: <6% (all auto-recovered)
+- Poll interval: 30s (optimized from 10s)
+- Register reads per day: 2,880
+- Prometheus metrics: 10 exported
+- Docker networks: 3 joined
+- API endpoints: 15+
+- Satisfaction level: 💯💯💯
+
+### What We Learned (The Real Treasure)
+
+**Technical Skills:**
+1. Modbus TCP/RTU protocol internals
+2. Two's complement signed integer handling
+3. Docker multi-network architecture
+4. Prometheus metrics integration
+5. ES6 module architecture (frontend)
+6. FastAPI with async Python
+7. Error handling and retry strategies
+8. Health checks and supervision
+9. Volume mounts vs image rebuilds
+10. Cross-origin resource sharing (CORS)
+
+**Engineering Insights:**
+1. **Simple is better** - Continuous polling beats complex initialization
+2. **Document as you go** - Future-you will be grateful
+3. **Safety first** - Read-only mode until you're confident
+4. **User feedback matters** - Best features come from real usage
+5. **Test extensively** - 2 minutes ≠ 8 minutes ≠ 24 hours
+6. **Embrace iteration** - v1.0 is never the final version
+7. **Correlation ≠ causation** - Red herrings everywhere!
+8. **RTFM carefully** - But know when it's incomplete
+9. **Joy in the journey** - Sometimes building it is more fun than using it
+10. **Know when to stop** - Perfection is the enemy of done
+
+### The Philosophical Conclusion
+
+We set out to control an LG heat pump via Modbus instead of ThinQ.
+
+**We succeeded.**
+
+But along the way, we:
+- Built a production monitoring system
+- Integrated three separate Docker stacks
+- Learned heat pump thermodynamics
+- Discovered undocumented hardware behaviors
+- Created comprehensive documentation
+- Had countless "aha!" moments
+- Enjoyed the satisfaction of making it work
+- **And now we're running out of ideas... which means we're DONE!** ✅
+
+### The Final Truth
+
+*"Is the system perfect?"*
+
+No. Software is never perfect.
+
+*"Is it complete?"*
+
+Yes. It does everything we need and more.
+
+*"Was it worth it?"*
+
+**Absolutely.**
+
+Not because we needed all these features.
+
+Not because the LG app didn't work.
+
+But because:
+- ✅ We learned valuable skills
+- ✅ We understand the system deeply
+- ✅ We're not locked into proprietary control
+- ✅ We have production-grade monitoring
+- ✅ We can customize to our exact needs
+- ✅ **We had FUN building it**
+
+*"The best code is the code you learned from, even if LG already had a simpler solution."*
+
+---
+
+## Status: JOURNEY COMPLETE ✅
+
+**Current System State (2025-10-24):**
+
+| Component | Status |
+|-----------|--------|
+| Heat Pump | 🟢 Running in production (LG Auto mode) |
+| External Control | ✅ Complete via Modbus TCP |
+| Continuous Polling | ✅ 30s interval, auto-recovery |
+| Docker Stack | 🐳 3 containers, health-checked |
+| REST API | 🌐 FastAPI with OpenAPI docs |
+| Web UI | 💻 Real-time monitoring + control |
+| Power Control | 🔌 ON/OFF with confirmation modals |
+| LG Mode Toggle | 🎛️ Auto/Heating mode switching |
+| LG Auto Offset | ±5K Fine-tuning working |
+| Offset Scheduling | 🕒 Time-based automation active |
+| Scheduler | 📅 Room temp + offset scheduling |
+| Prometheus Metrics | 📊 10 metrics exported |
+| Grafana Integration | 📈 Temperature trends, cycles |
+| Error Rate | <6% (all auto-recovered) |
+| Uptime | 🎯 Days without intervention |
+| Documentation | 📚 11 UML diagrams, 10+ docs |
+| **Feature Ideas** | 🎉 **RUNNING OUT!** |
+| **Satisfaction** | 💯💯💯 **MAXIMUM ACHIEVED** |
+
+### What's Working (Everything!)
+
+- ✅ Stable Modbus communication with retry logic
+- ✅ Shared RS-485 bus with WAGO meter (no issues)
+- ✅ Real-time status monitoring
+- ✅ Temperature control (full write access enabled)
+- ✅ LG Auto mode with offset control
+- ✅ Manual Heating mode with flow temp control
+- ✅ Scheduler integration (dual API control)
+- ✅ **Offset scheduling** (comfort-efficiency balance)
+- ✅ Prometheus metrics export
+- ✅ Cross-stack Docker networking
+- ✅ Two's complement signed integers
+- ✅ Operating mode distinction
+- ✅ Automatic error recovery
+- ✅ Health checks and supervision
+- ✅ Power control with modern UI
+- ✅ Mode switching with instant feedback
+- ✅ Multi-browser synchronization
+- ✅ Volume-mounted configs
+- ✅ Comprehensive documentation
+- ✅ **THE JOURNEY ITSELF**
+
+*The journey was frustrating. The solution was simple. The learning was priceless.*
+
+*And we're running out of refactoring ideas, which means...*
+
+## 🎉 WE'RE DONE! 🎉
+
+---
+
+*Generated with a mix of:*
+- *30% frustration (debugging Modbus)*
+- *20% determination (retry logic)*
+- *40% joy (watching it work)*
+- *10% sarcasm (discovering LG already did this)*
+- *100% satisfaction (the journey was worth it)*
+
+*May your Modbus communications be stable,*
+*Your registers always readable,*
+*Your offsets perfectly scheduled,*
+*And your radiators warm in the morning!*
+
+🔥 **Happy Heating!** 🔥
+
+*P.S. - If you're reading this years from now wondering "why did they do it this way?" - now you know. We didn't just build a system. We went on a JOURNEY.*
