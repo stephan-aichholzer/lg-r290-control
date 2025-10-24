@@ -132,18 +132,7 @@ The LG R290 Heat Pump Control System is a containerized, microservices-based arc
 4. API requests: Serve cached data (fast, non-blocking)
 5. Write operations: Direct Modbus write + immediate cache update
 
-**API Endpoints**:
-
-| Method | Endpoint | Description | Request | Response |
-|--------|----------|-------------|---------|----------|
-| GET | `/status` | Current heat pump state | - | HeatPumpStatus |
-| POST | `/power` | Power control | PowerControl | Status message |
-| POST | `/setpoint` | Set target temperature | TemperatureSetpoint | Status message |
-| GET | `/health` | Health check | - | Health status |
-| GET | `/registers/raw` | Raw register data (debug) | - | Raw values |
-| POST | `/lg-mode` | Switch LG operating mode | LGModeControl | Mode status + default temp |
-| POST | `/auto-mode-offset` | Set LG Auto offset | OffsetControl | Status message |
-| GET | `/lg-auto-offset-config` | Get offset configuration | - | Offset config |
+**API Endpoints**: RESTful interface for heat pump control and monitoring. See [docs/API_REFERENCE.md](../docs/API_REFERENCE.md) for complete documentation.
 
 **Files**:
 - `service/main.py`: FastAPI application and endpoints
@@ -154,12 +143,7 @@ The LG R290 Heat Pump Control System is a containerized, microservices-based arc
 - `service/schedule.json`: Time-based schedule configuration
 - `service/Dockerfile`: Container build configuration
 
-**Configuration** (Environment Variables):
-- `MODBUS_HOST`: Modbus server address (default: `heatpump-mock`)
-- `MODBUS_PORT`: Modbus TCP port (default: `502`)
-- `MODBUS_UNIT_ID`: Modbus unit/slave ID (default: `1`)
-- `POLL_INTERVAL`: Polling interval in seconds (default: `5`)
-- `THERMOSTAT_API_URL`: External thermostat API URL (default: `http://192.168.2.11:8001`)
+**Configuration**: Environment variables for Modbus connection, polling intervals, and API integration. See [docs/DEPLOYMENT.md](../docs/DEPLOYMENT.md) for complete reference.
 
 ### 3. heatpump-ui (Web Interface)
 
@@ -310,80 +294,15 @@ The LG R290 Heat Pump Control System is a containerized, microservices-based arc
 
 ## Modbus Register Mapping
 
-### Register Types and Addressing
+The system uses Modbus TCP for communication with the heat pump. Register addressing follows the standard Modbus convention (Coils, Discrete Inputs, Input Registers, Holding Registers).
 
-| Type | Function Code | Modbus Addr | API Addr | R/W | Description |
-|------|---------------|-------------|----------|-----|-------------|
-| Coil | 0x01 | 00001 | 0 | R/W | Power ON/OFF |
-| Discrete | 0x02 | 10001-10017 | 0-16 | R | Status flags |
-| Input | 0x03 | 30001-30014 | 0-13 | R | Sensor readings |
-| Holding | 0x04 | 40001-40025 | 0-24 | R/W | Configuration |
-
-### Key Registers (Initial Implementation)
-
-**Control Registers**:
-- Coil 0 (00001): Enable/Disable (Heating/Cooling)
-- Holding 2 (40003): Target Temperature Circuit 1 (0.1°C × 10)
-
-**Status Registers**:
-- Discrete 3 (10004): Compressor Status (0=OFF, 1=ON)
-- Discrete 13 (10014): Error Flag
-
-**Sensor Registers**:
-- Input 0 (30001): Error Code
-- Input 1 (30002): Operating Mode (0=Standby, 1=Cooling, 2=Heating)
-- Input 2 (30003): Return Temperature / Inlet (0.1°C × 10) - colder water from system
-- Input 3 (30004): Flow Temperature / Outlet (0.1°C × 10) - hotter water to system
-- Input 8 (30009): Flow Rate (0.1 LPM × 10)
-- Input 12 (30013): Outdoor Temperature (0.1°C × 10)
-- Input 13 (30014): Water Pressure (0.1 bar × 10)
+For complete register mapping, addressing details, and data formats, see [MODBUS.md](../MODBUS.md).
 
 ## Deployment
 
-### Docker Compose Network
+The system is deployed using Docker Compose with separate services for mock server, API backend, and web UI. It supports both development mode (with mock hardware) and production mode (real LG R290 hardware).
 
-All services run on a custom bridge network (`heatpump-net`):
-
-- Enables service discovery by name (e.g., `heatpump-mock`, `heatpump-service`)
-- Isolated from host network for security
-- Port mapping only where external access is needed
-
-### Port Mapping
-
-| Service | Internal Port | External Port | Purpose |
-|---------|---------------|---------------|---------|
-| heatpump-mock | 502 | 5020 | Modbus TCP (mock) |
-| heatpump-service | 8000 | 8000 | REST API |
-| heatpump-ui | 80 | 8080 | Web UI |
-
-### Volume Mounts
-
-- `./mock/registers.json` → `/app/registers.json`: Persistent register state
-
-## Development vs. Production Mode
-
-### Development Mode (Default)
-
-```yaml
-MODBUS_HOST=heatpump-mock
-MODBUS_PORT=502
-```
-
-- All three services run
-- Mock server simulates heat pump
-- Edit `registers.json` to test different scenarios
-- No physical hardware required
-
-### Production Mode
-
-```yaml
-MODBUS_HOST=192.168.1.100  # Waveshare gateway IP
-MODBUS_PORT=502
-```
-
-- Only `heatpump-service` and `heatpump-ui` run
-- Remove/comment `heatpump-mock` from docker-compose
-- Connect to real LG R290 via Waveshare RS485 gateway
+For complete deployment instructions, Docker configuration, network setup, and environment variables, see [docs/DEPLOYMENT.md](../docs/DEPLOYMENT.md).
 
 ## Data Flow Examples
 
