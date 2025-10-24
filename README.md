@@ -489,13 +489,14 @@ Comprehensive feature documentation is available in the `docs/` directory:
 
 ### Feature Documentation
 
-- **[Scheduler](docs/SCHEDULER.md)** - Time-based automatic room temperature scheduling
+- **[Scheduler](docs/SCHEDULER.md)** - Time-based automatic room temperature and heat pump offset scheduling
   - Week-based schedules (weekday/weekend patterns)
+  - **LG Auto Mode Offset Scheduling**: Automatically adjust flow temperature response at different times
   - Discrete event triggering at exact times
   - Mode-aware operation (respects ECO/OFF)
-  - Hot-reloadable configuration
+  - Volume-mounted configuration (restart to apply changes)
   - Vienna timezone with DST support
-  - **Note**: Scheduler controls the thermostat (shelly_bt_temp project), not directly implemented in this project's UI
+  - **Note**: Scheduler controls both thermostat (shelly_bt_temp project) and heat pump offset (this project)
 
 - **[Heat Pump Control](docs/HEAT_PUMP_CONTROL.md)** - LG Mode Modbus TCP control
   - Complete register mapping

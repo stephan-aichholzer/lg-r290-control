@@ -23,15 +23,17 @@ logger = logging.getLogger(__name__)
 class Scheduler:
     """Manages thermostat scheduling based on time-based rules."""
 
-    def __init__(self, thermostat_api_url: str, schedule_file: str = "schedule.json"):
+    def __init__(self, thermostat_api_url: str, schedule_file: str = "schedule.json", heatpump_api_url: str = "http://localhost:8000"):
         """
         Initialize scheduler.
 
         Args:
             thermostat_api_url: Base URL for thermostat API
             schedule_file: Path to schedule configuration JSON file
+            heatpump_api_url: Base URL for heat pump API (for auto_offset control)
         """
         self.thermostat_api_url = thermostat_api_url
+        self.heatpump_api_url = heatpump_api_url
         self.schedule_file = Path(schedule_file)
         self.schedules = []
         self.enabled = False
@@ -90,12 +92,18 @@ class Scheduler:
                 except ValueError:
                     logger.warning(f"Schedule {idx}, period {period_idx}: Invalid time format '{period['time']}' (expected HH:MM)")
 
+                # Validate auto_offset if present
+                if 'auto_offset' in period:
+                    offset = period['auto_offset']
+                    if not isinstance(offset, int) or not -5 <= offset <= 5:
+                        logger.warning(f"Schedule {idx}, period {period_idx}: Invalid auto_offset '{offset}' (must be integer -5 to +5)")
+
     def get_current_schedule_action(self) -> Optional[Dict]:
         """
         Check if current time matches a scheduled period.
 
         Returns:
-            Dict with 'target_temp' if current time matches a schedule, None otherwise
+            Dict with 'target_temp' and 'auto_offset' if current time matches a schedule, None otherwise
         """
         if not self.enabled:
             return None
@@ -109,9 +117,11 @@ class Scheduler:
             if current_day in schedule['days']:
                 for period in schedule['periods']:
                     if period['time'] == current_time:
-                        logger.info(f"Schedule match: {current_day} {current_time} → {period['target_temp']}°C")
+                        auto_offset = period.get('auto_offset', 0)
+                        logger.info(f"Schedule match: {current_day} {current_time} → {period['target_temp']}°C, auto_offset: {auto_offset:+d}K")
                         return {
                             'target_temp': period['target_temp'],
+                            'auto_offset': auto_offset,
                             'day': current_day,
                             'time': current_time
                         }
@@ -120,13 +130,13 @@ class Scheduler:
 
     async def apply_schedule_action(self, action: Dict) -> bool:
         """
-        Apply scheduled action by calling thermostat API.
+        Apply scheduled action by calling thermostat API and heat pump API.
 
         Only applies if current mode is AUTO or ON.
         ECO and OFF modes are not affected.
 
         Args:
-            action: Dict with 'target_temp' to apply
+            action: Dict with 'target_temp' and 'auto_offset' to apply
 
         Returns:
             True if schedule was applied, False otherwise
@@ -159,7 +169,7 @@ class Scheduler:
                     'control_interval': current_config.get('control_interval', 60)
                 }
 
-                # Step 4: Apply new config
+                # Step 4: Apply new thermostat config
                 response = await client.post(
                     f"{self.thermostat_api_url}/api/v1/thermostat/config",
                     json=new_config
@@ -170,6 +180,18 @@ class Scheduler:
                     f"✓ Schedule applied: mode=AUTO, target_temp={action['target_temp']}°C "
                     f"(was mode={current_mode})"
                 )
+
+                # Step 5: Set LG Auto mode offset via heat pump API
+                auto_offset = action.get('auto_offset', 0)
+                logger.info(f"Setting LG Auto mode offset to {auto_offset:+d}K via heat pump API")
+
+                response = await client.post(
+                    f"{self.heatpump_api_url}/auto-mode-offset",
+                    json={'offset': auto_offset}
+                )
+                response.raise_for_status()
+
+                logger.info(f"✓ LG Auto mode offset set to {auto_offset:+d}K")
                 return True
 
         except httpx.HTTPError as e:
