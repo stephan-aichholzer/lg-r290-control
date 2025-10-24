@@ -8,6 +8,9 @@ services:
     container_name: lg_r290_service
     ports:
       - "8002:8000"
+    volumes:
+      # Mount schedule.json for hot-reload without rebuild
+      - ./service/schedule.json:/app/schedule.json:ro
     environment:
       - MODBUS_HOST=${MODBUS_HOST:-192.168.2.10}  # Waveshare gateway IP
       - MODBUS_PORT=${MODBUS_PORT:-8899}  # Waveshare gateway port

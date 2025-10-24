@@ -211,7 +211,8 @@ async def lifespan(app: FastAPI):
     # Initialize scheduler (if enabled)
     if ENABLE_SCHEDULER:
         logger.info("Initializing scheduler")
-        scheduler = Scheduler(thermostat_api_url, schedule_file="schedule.json")
+        heatpump_api_url = "http://localhost:8000"  # Internal API for auto_offset control
+        scheduler = Scheduler(thermostat_api_url, schedule_file="schedule.json", heatpump_api_url=heatpump_api_url)
         # Start scheduler as background task
         asyncio.create_task(scheduler.run())
         logger.info(f"Scheduler started (enabled={scheduler.enabled})")

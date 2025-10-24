@@ -2,13 +2,14 @@
 
 ## Overview
 
-The Scheduler provides automatic, time-based room temperature control by scheduling target temperatures at specific times throughout the week. It works silently in the background, calling the thermostat API to set mode and temperature at scheduled times.
+The Scheduler provides automatic, time-based room temperature control by scheduling target temperatures at specific times throughout the week. It works silently in the background, calling the thermostat API to set mode and temperature, and the heat pump API to set LG Auto mode offset at scheduled times.
 
 **Key Features:**
 - Week-based scheduling (different schedules for weekdays/weekends)
+- **LG Auto Mode Offset Scheduling**: Automatically adjust heat pump flow temperature response at different times
 - Automatic mode management (forces AUTO mode at scheduled times)
 - Respects manual ECO/OFF modes (schedule only affects AUTO/ON modes)
-- Hot-reloadable configuration (no restart required)
+- Hot-reloadable configuration (via volume mount - restart only)
 - Vienna timezone support (CEST/CET with automatic DST)
 
 ## How It Works
@@ -19,17 +20,36 @@ The Scheduler provides automatic, time-based room temperature control by schedul
 2. **Mode Check**: If match found, checks current thermostat mode:
    - **ECO or OFF**: Schedule is skipped (no change)
    - **AUTO or ON**: Schedule is applied
-3. **Application**: Sets mode to AUTO and applies scheduled target temperature
-4. **Reset Function**: Acts as a "resetter" - if user manually changes temperature, the next scheduled period will reset it back
+3. **Application**:
+   - Sets thermostat mode to AUTO and applies scheduled target temperature
+   - Sets heat pump LG Auto mode offset (adjusts flow temperature response)
+4. **Reset Function**: Acts as a "resetter" - if user manually changes temperature or offset, the next scheduled period will reset it back
+
+### LG Auto Mode Offset Scheduling
+
+The scheduler can automatically adjust the heat pump's flow temperature response at different times of day. This allows you to:
+
+- **Morning (05:00)**: Set higher offset (+3K) for faster heating and warm radiators
+- **Daytime (09:00)**: Set neutral offset (0K) for efficient steady-state operation
+- **Evening (17:00)**: Set moderate offset (+1K) for gentle evening comfort
+- **Night (22:00)**: Set lower offset (-1K) for minimal flow temperature
+
+**How it works:**
+- Offset range: -5K to +5K (integer values)
+- Higher offset (+3K) = Higher flow temperature = Faster room heating
+- Lower offset (-1K) = Lower flow temperature = More efficient operation
+- Offset is **only active** when heat pump is in LG Auto mode (register 40001 = 3)
 
 ### Example Timeline
 
 ```
-Monday 05:00 → Scheduler sets AUTO mode, 22.2°C
+Monday 05:00 → Scheduler sets AUTO mode, 22.2°C, offset +3K (fast warm-up)
        07:30 → User manually changes to ON mode, 24.0°C (allowed)
-       09:00 → Scheduler resets to AUTO mode, 22.0°C
+       09:00 → Scheduler resets to AUTO mode, 22.0°C, offset 0K (relaxed)
        15:00 → User changes to ECO mode (scheduler will not interfere)
-       22:00 → Scheduler SKIPS (ECO mode active)
+       17:00 → Scheduler SKIPS (ECO mode active, offset not changed)
+       22:00 → User returns to AUTO mode
+       22:00 → Scheduler sets 21.5°C, offset -1K (efficient night heating)
 ```
 
 ## Configuration
@@ -47,16 +67,18 @@ Monday 05:00 → Scheduler sets AUTO mode, 22.2°C
     {
       "days": ["monday", "tuesday", "wednesday", "thursday", "friday"],
       "periods": [
-        {"time": "05:00", "target_temp": 22.2},
-        {"time": "09:00", "target_temp": 22.0},
-        {"time": "22:00", "target_temp": 21.0}
+        {"time": "05:00", "target_temp": 22.2, "auto_offset": 3},
+        {"time": "09:00", "target_temp": 22.0, "auto_offset": 0},
+        {"time": "17:00", "target_temp": 22.0, "auto_offset": 1},
+        {"time": "22:00", "target_temp": 21.0, "auto_offset": -1}
       ]
     },
     {
       "days": ["saturday", "sunday"],
       "periods": [
-        {"time": "06:00", "target_temp": 22.2},
-        {"time": "23:00", "target_temp": 21.0}
+        {"time": "06:00", "target_temp": 22.2, "auto_offset": 3},
+        {"time": "10:00", "target_temp": 22.0, "auto_offset": 0},
+        {"time": "23:00", "target_temp": 21.0, "auto_offset": -1}
       ]
     }
   ]
@@ -70,9 +92,10 @@ Monday 05:00 → Scheduler sets AUTO mode, 22.2°C
 | `enabled` | boolean | Master enable/disable flag |
 | `schedules` | array | Array of schedule objects |
 | `days` | array | Day names (lowercase): `monday`, `tuesday`, etc. |
-| `periods` | array | Array of time/temperature pairs |
+| `periods` | array | Array of time/temperature/offset tuples |
 | `time` | string | Time in HH:MM format (24-hour, local time) |
 | `target_temp` | number | Target room temperature in °C |
+| `auto_offset` | integer | LG Auto mode offset in Kelvin (-5 to +5) |
 
 ### Timezone Configuration
 
@@ -144,16 +167,20 @@ Hot-reloads `schedule.json` without restarting the service.
 │  │  apply_schedule_action()                      │  │
 │  │  ├─ GET /thermostat/config (check mode)      │  │
 │  │  ├─ If mode is ECO/OFF → skip                │  │
-│  │  └─ POST /thermostat/config (set AUTO+temp)  │  │
+│  │  ├─ POST /thermostat/config (set AUTO+temp)  │  │
+│  │  └─ POST /auto-mode-offset (set offset)      │  │
 │  └───────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────┘
                          │
-                         ↓ HTTP Request
-┌─────────────────────────────────────────────────────┐
-│  Thermostat API (iot-api:8000)                      │
-│  - Updates mode and target_temp                     │
-│  - Controls circulation pump                        │
-└─────────────────────────────────────────────────────┘
+              ┌──────────┴──────────┐
+              ↓                     ↓
+┌──────────────────────┐  ┌─────────────────────────┐
+│  Thermostat API      │  │  Heat Pump API          │
+│  (iot-api:8000)      │  │  (localhost:8000)       │
+│  - Updates mode      │  │  - Sets LG Auto offset  │
+│  - Sets target_temp  │  │  - Register 40005       │
+│  - Controls pump     │  │  - Adjusts flow temp    │
+└──────────────────────┘  └─────────────────────────┘
 ```
 
 ### File Structure
@@ -162,50 +189,26 @@ Hot-reloads `schedule.json` without restarting the service.
 service/
 ├── main.py                    # FastAPI app, scheduler initialization
 ├── scheduler.py               # Scheduler logic and background task
-├── schedule.json              # Schedule configuration
-└── Dockerfile                 # Includes schedule.json in container
+├── schedule.json              # Schedule configuration (volume-mounted)
+└── Dockerfile                 # Builds service image
+
+docker-compose.yml             # Includes schedule.json volume mount
 ```
 
 ### Initialization Flow
 
-1. `main.py` reads `ENABLE_SCHEDULER` flag (line 38)
-2. If enabled, creates `Scheduler` instance with thermostat API URL
-3. `Scheduler.__init__()` loads `schedule.json`
+1. `main.py` reads `ENABLE_SCHEDULER` flag (line 45)
+2. If enabled, creates `Scheduler` instance with thermostat API URL and heat pump API URL
+3. `Scheduler.__init__()` loads `schedule.json` from volume mount
 4. `asyncio.create_task(scheduler.run())` starts background task
 5. Background task runs continuously, checking every 60 seconds
+6. When match found, calls both thermostat API and heat pump API
 
 ## Use Cases
 
-### Standard Weekday/Weekend Schedule
+### Comfort-Optimized Schedule (Recommended)
 
-**Scenario**: Warmer in the morning, cooler at night, different timing on weekends
-
-```json
-{
-  "enabled": true,
-  "schedules": [
-    {
-      "days": ["monday", "tuesday", "wednesday", "thursday", "friday"],
-      "periods": [
-        {"time": "05:00", "target_temp": 22.2},
-        {"time": "09:00", "target_temp": 22.0},
-        {"time": "22:00", "target_temp": 21.0}
-      ]
-    },
-    {
-      "days": ["saturday", "sunday"],
-      "periods": [
-        {"time": "06:00", "target_temp": 22.2},
-        {"time": "23:00", "target_temp": 21.0}
-      ]
-    }
-  ]
-}
-```
-
-### Energy Saving Schedule
-
-**Scenario**: Lower temperature during work hours
+**Scenario**: Fast warm-up in the morning, efficient operation during the day, gentle evening, economical night
 
 ```json
 {
@@ -214,22 +217,62 @@ service/
     {
       "days": ["monday", "tuesday", "wednesday", "thursday", "friday"],
       "periods": [
-        {"time": "06:00", "target_temp": 22.0},
-        {"time": "08:00", "target_temp": 20.0},
-        {"time": "17:00", "target_temp": 22.0},
-        {"time": "23:00", "target_temp": 21.0}
+        {"time": "05:00", "target_temp": 22.2, "auto_offset": 3},
+        {"time": "09:00", "target_temp": 21.5, "auto_offset": 0},
+        {"time": "17:00", "target_temp": 22.0, "auto_offset": 1},
+        {"time": "22:00", "target_temp": 21.5, "auto_offset": -1}
       ]
     },
     {
       "days": ["saturday", "sunday"],
       "periods": [
-        {"time": "08:00", "target_temp": 22.0},
-        {"time": "23:00", "target_temp": 21.0}
+        {"time": "05:00", "target_temp": 22.2, "auto_offset": 3},
+        {"time": "10:00", "target_temp": 22.0, "auto_offset": 0},
+        {"time": "23:00", "target_temp": 21.5, "auto_offset": -1}
       ]
     }
   ]
 }
 ```
+
+**Benefits:**
+- **05:00**: +3K offset = High flow temp = Fast heating + warm radiators (comfort priority)
+- **09:00/10:00**: 0K offset = Normal flow temp = Efficient steady-state (energy priority)
+- **17:00**: +1K offset = Moderate flow temp = Gentle evening boost (comfort)
+- **22:00/23:00**: -1K offset = Low flow temp = Minimal heating for sleep (energy priority)
+
+### Maximum Efficiency Schedule
+
+**Scenario**: Prioritize energy efficiency over fast response times
+
+```json
+{
+  "enabled": true,
+  "schedules": [
+    {
+      "days": ["monday", "tuesday", "wednesday", "thursday", "friday"],
+      "periods": [
+        {"time": "06:00", "target_temp": 22.0, "auto_offset": 0},
+        {"time": "08:00", "target_temp": 20.0, "auto_offset": -2},
+        {"time": "17:00", "target_temp": 22.0, "auto_offset": 0},
+        {"time": "23:00", "target_temp": 21.0, "auto_offset": -1}
+      ]
+    },
+    {
+      "days": ["saturday", "sunday"],
+      "periods": [
+        {"time": "08:00", "target_temp": 22.0, "auto_offset": 0},
+        {"time": "23:00", "target_temp": 21.0, "auto_offset": -1}
+      ]
+    }
+  ]
+}
+```
+
+**Benefits:**
+- Lower flow temperatures throughout the day = Better heat pump COP
+- Minimal offset adjustments = Predictable, efficient operation
+- Suitable for well-insulated homes with low heating demand
 
 ## Disabling the Scheduler
 
@@ -312,18 +355,13 @@ Should output: `Europe/Vienna`
 
 ### Hot reload not working
 
-**After editing `schedule.json` on host**, the file inside the container is NOT automatically updated. You must:
+**After editing `schedule.json` on host**, the file is volume-mounted so changes are immediately available to the container. You must **restart the service** to reload the configuration:
 
-1. **Rebuild container** to copy new schedule.json:
-   ```bash
-   docker-compose build heatpump-service
-   docker-compose up -d heatpump-service
-   ```
+```bash
+docker-compose restart heatpump-service
+```
 
-2. **OR use hot reload API** (only reloads existing file inside container):
-   ```bash
-   curl -X POST http://localhost:8002/schedule/reload
-   ```
+The configuration is read once at startup, so a restart is required to apply changes.
 
 ## Implementation Details
 
@@ -370,10 +408,12 @@ Scheduler logs are prefixed with `scheduler`:
 
 **INFO Level:**
 ```
-2025-10-11 09:30:00 - scheduler - INFO - Schedule loaded: enabled=True, 2 schedule(s)
-2025-10-11 09:30:00 - scheduler - INFO - Scheduler started
-2025-10-11 09:42:00 - scheduler - INFO - Schedule match: saturday 09:42 → 23.5°C
-2025-10-11 09:42:00 - scheduler - INFO - ✓ Schedule applied: mode=AUTO, target_temp=23.5°C
+2025-10-24 05:00:48 - scheduler - INFO - Schedule loaded: enabled=True, 2 schedule(s)
+2025-10-24 05:00:48 - scheduler - INFO - Scheduler started
+2025-10-24 05:00:48 - scheduler - INFO - Schedule match: friday 05:00 → 22.2°C, auto_offset: +3K
+2025-10-24 05:00:48 - scheduler - INFO - ✓ Schedule applied: mode=AUTO, target_temp=22.2°C
+2025-10-24 05:00:48 - scheduler - INFO - Setting LG Auto mode offset to +3K via heat pump API
+2025-10-24 05:00:54 - scheduler - INFO - ✓ LG Auto mode offset set to +3K
 ```
 
 **DEBUG Level** (enable in main.py):
