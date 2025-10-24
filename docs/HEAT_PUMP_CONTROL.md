@@ -27,48 +27,14 @@ The system uses **Modbus TCP** to communicate with the heat pump:
 
 ### Register Mapping
 
-#### Coils (Read/Write - Digital Outputs)
+The system communicates via Modbus TCP with key registers for:
+- **Power control** (Coil 00001)
+- **Operating mode** (Holding 40001: 0=Cool, 3=Auto, 4=Heat)
+- **Temperature setpoint** (Holding 40003: used in Heat/Cool modes)
+- **Auto mode offset** (Holding 40005: ±5K, used in Auto mode)
+- **Status monitoring** (Input registers for temperatures, flow rate, pressure)
 
-| Address | Register | Description | Values |
-|---------|----------|-------------|--------|
-| 00001 | COIL_POWER | Heat pump enable/disable | 0=OFF, 1=ON |
-
-#### Discrete Inputs (Read-Only - Digital Inputs)
-
-| Address | Register | Description | Values |
-|---------|----------|-------------|--------|
-| 10002 | DISCRETE_WATER_PUMP | Water pump status | 0=OFF, 1=ON |
-| 10004 | DISCRETE_COMPRESSOR | Compressor status | 0=OFF, 1=ON |
-| 10014 | DISCRETE_ERROR | Error flag | 0=No error, 1=Error |
-
-#### Input Registers (Read-Only - Analog Inputs)
-
-| Address | Register | Description | Unit | Conversion |
-|---------|----------|-------------|------|------------|
-| 30001 | INPUT_ERROR_CODE | Error code | - | Direct |
-| 30002 | INPUT_OPERATING_MODE | ODU operating cycle | - | Enum decode |
-| 30003 | INPUT_RETURN_TEMP | Water inlet (return) temperature | °C | Value / 10 |
-| 30004 | INPUT_FLOW_TEMP | Water outlet (flow) temperature | °C | Value / 10 |
-| 30009 | INPUT_FLOW_RATE | Current flow rate | L/min | Value / 10 |
-| 30013 | INPUT_OUTDOOR_TEMP | Outdoor air temperature | °C | Value / 10 |
-| 30014 | INPUT_WATER_PRESSURE | Water pressure | bar | Value / 10 |
-
-#### Holding Registers (Read/Write - Analog Outputs)
-
-| Address | Register | Description | Unit | Conversion |
-|---------|----------|-------------|------|------------|
-| 40001 | HOLDING_OP_MODE | Operating mode | - | Enum |
-| 40003 | HOLDING_TARGET_TEMP | Target temperature circuit 1 | °C | Value × 10 |
-
-### Operating Modes
-
-| Code | Mode | Description |
-|------|------|-------------|
-| 0 | Standby | Heat pump idle |
-| 1 | Heating | Active heating cycle |
-| 2 | Cooling | Active cooling cycle |
-| 3 | Defrost | Defrost cycle |
-| 4 | Hot Water | DHW mode |
+For complete register mapping, addressing, data formats, and operating modes, see [../MODBUS.md](../MODBUS.md).
 
 ## Configuration
 
@@ -104,112 +70,17 @@ MODBUS_PORT=502            # Standard Modbus port
 
 ## API Endpoints
 
-### Get Heat Pump Status
+The system provides RESTful API endpoints for heat pump control:
 
-```http
-GET /status
-```
+- **GET /status** - Current heat pump state (temperatures, mode, power)
+- **POST /power** - Turn heat pump ON/OFF
+- **POST /lg-mode** - Switch between Auto (3) and Heating (4) modes
+- **POST /setpoint** - Set target temperature (Heating mode only, 33-50°C)
+- **POST /auto-mode-offset** - Adjust Auto mode offset (±5K)
+- **GET /health** - Health check
+- **GET /registers/raw** - Debug: raw Modbus register values
 
-**Response:**
-```json
-{
-  "is_on": true,
-  "water_pump_running": true,
-  "compressor_running": true,
-  "operating_mode": "Heating",
-  "target_temperature": 40.0,
-  "flow_temperature": 45.0,
-  "return_temperature": 30.0,
-  "flow_rate": 12.5,
-  "outdoor_temperature": 5.0,
-  "water_pressure": 1.5,
-  "error_code": 0,
-  "has_error": false
-}
-```
-
-### Set Power State
-
-```http
-POST /power
-Content-Type: application/json
-
-{
-  "power_on": true
-}
-```
-
-**Response:**
-```json
-{
-  "status": "success",
-  "power_on": true
-}
-```
-
-### Set Temperature Setpoint
-
-```http
-POST /setpoint
-Content-Type: application/json
-
-{
-  "temperature": 45.0
-}
-```
-
-**Validation:**
-- Range: 20.0 - 60.0°C
-- Returns 400 error if out of range
-
-**Response:**
-```json
-{
-  "status": "success",
-  "target_temperature": 45.0
-}
-```
-
-### Health Check
-
-```http
-GET /health
-```
-
-**Response:**
-```json
-{
-  "status": "healthy",
-  "modbus_connected": true
-}
-```
-
-Returns 503 if Modbus not connected.
-
-### Get Raw Registers (Debug)
-
-```http
-GET /registers/raw
-```
-
-**Response:**
-```json
-{
-  "coils": {"00001": true},
-  "discrete_inputs": {"10002": true, "10004": true, "10014": false},
-  "input_registers": {
-    "30001": 0,
-    "30002": 1,
-    "30003": 300,
-    "30004": 450,
-    ...
-  },
-  "holding_registers": {
-    "40001": 4,
-    "40003": 400
-  }
-}
-```
+For complete API documentation with request/response schemas, validation rules, and examples, see [API_REFERENCE.md](API_REFERENCE.md).
 
 ## Architecture
 

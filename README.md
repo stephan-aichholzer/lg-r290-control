@@ -175,101 +175,46 @@ The system supports two operating modes (`service/config.json`):
 
 ## Configuration
 
-### Environment Variables
+Configuration is managed via environment variables in `docker-compose.yml` and `.env` file. Key settings include Modbus connection parameters, polling intervals, and thermostat API integration.
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `MODBUS_HOST` | `heatpump-mock` | Modbus TCP host (container name or IP) |
-| `MODBUS_PORT` | `502` | Modbus TCP port (internal Docker network) |
-| `MODBUS_UNIT_ID` | `1` | Modbus slave/unit ID |
-| `POLL_INTERVAL` | `5` | Polling interval in seconds |
-| `THERMOSTAT_API_URL` | `http://iot-api:8000` | Thermostat API base URL (Docker container name for AI Mode) |
-
-**Note for Thermostat Integration**:
-- The `THERMOSTAT_API_URL` should use the **Docker container name** (`iot-api`) not the host IP
-- Requires external network reference to the thermostat stack (see docker-compose.yml)
-- Example: `shelly_bt_temp_default` network must exist and be referenced
-- If thermostat API is unavailable, system uses default offset (0K)
+For complete environment variable reference and configuration examples, see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 ### Modbus Registers
 
-Key registers implemented:
+The LG R290 uses Modbus TCP for communication. Key control registers:
 
-| Type | Address | Description | Unit | Notes |
-|------|---------|-------------|------|-------|
-| Coil | 00001 | Power ON/OFF | Boolean | - |
-| Discrete | 10004 | Compressor Status | Boolean | - |
-| Input | 30003 | Return Temp (Inlet - colder) | 0.1°C | - |
-| Input | 30004 | Flow Temp (Outlet - hotter) | 0.1°C | - |
-| Input | 30009 | Flow Rate | 0.1 LPM | - |
-| Holding | 40001 | Operating Mode Setting | Enum | 0=Cool, 3=Auto, 4=Heat |
-| Holding | 40003 | Target Temperature | 0.1°C | **Only used in Heat/Cool mode** |
-| Holding | 40005 | Auto Mode Offset | 1K | **Only used in Auto mode** (±5K) |
+- **Coil 00001**: Power ON/OFF
+- **Holding 40001**: Operating Mode (0=Cool, 3=Auto, 4=Heat)
+- **Holding 40003**: Target Temperature (only used in Heat/Cool mode, 33-50°C)
+- **Holding 40005**: Auto Mode Offset (only used in Auto mode, ±5K)
 
-**Important: Temperature Control Modes**
+**Temperature Control Modes:**
+- **Manual Mode (Heat/Cool)**: Direct flow temperature control via register 40003
+- **Auto Mode**: LG's internal heating curve + offset adjustment via register 40005
 
-The heat pump has two distinct temperature control mechanisms:
-
-1. **Manual Mode (Heat/Cool)**: Register 40001 = 0 (Cool) or 4 (Heat)
-   - Flow temperature is controlled by **register 40003** (Target Temperature)
-   - User sets explicit target flow temperature (33-50°C)
-   - Register 40005 (Auto Mode Offset) is ignored
-
-2. **Auto Mode**: Register 40001 = 3 (Auto)
-   - Flow temperature is calculated by LG's internal heating curve
-   - Calculation uses outdoor temperature + **register 40005** (Auto Mode Offset)
-   - Register 40003 (Target Temperature) is **ignored/unused**
-   - Offset allows fine-tuning: -5K (colder) to +5K (warmer)
-
-The UI automatically switches between showing the temperature slider (Manual mode) and the offset display (Auto mode).
-
-See `LG_R290_register.pdf` for complete register documentation.
+For complete register mapping and detailed documentation, see [MODBUS.md](MODBUS.md).
 
 ## API Endpoints
 
-### GET /status
-Get current heat pump status including temperatures, flow rate, and operating mode.
+Quick examples:
 
-**Response:**
-```json
-{
-  "is_on": true,
-  "water_pump_running": true,
-  "compressor_running": false,
-  "operating_mode": "Heating",
-  "target_temperature": 45.0,
-  "flow_temperature": 35.0,
-  "return_temperature": 30.0,
-  "flow_rate": 12.5,
-  "outdoor_temperature": 5.0,
-  "water_pressure": 1.5,
-  "error_code": 0,
-  "has_error": false
-}
+```bash
+# Get status
+curl http://localhost:8002/status
+
+# Turn heat pump ON
+curl -X POST http://localhost:8002/power -d '{"power_on": true}'
+
+# Switch to LG Auto mode
+curl -X POST http://localhost:8002/lg-mode -d '{"mode": 3}'
+
+# Adjust Auto mode offset
+curl -X POST http://localhost:8002/auto-mode-offset -d '{"offset": 2}'
 ```
 
-### POST /power
-Turn heat pump on or off.
+**Interactive API Documentation**: http://localhost:8002/docs (Swagger UI)
 
-**Request:**
-```json
-{
-  "power_on": true
-}
-```
-
-### POST /setpoint
-Set target temperature setpoint (20-60°C).
-
-**Request:**
-```json
-{
-  "temperature": 45.0
-}
-```
-
-### GET /health
-Health check endpoint.
+For complete API reference with all endpoints, schemas, and examples, see [docs/API_REFERENCE.md](docs/API_REFERENCE.md).
 
 ## Development
 
@@ -322,41 +267,14 @@ docker-compose build heatpump-service
 
 ## Troubleshooting
 
-### Cannot connect to Modbus gateway
+For comprehensive troubleshooting guides covering:
+- Connection issues (Modbus, Docker, Network)
+- Heat pump control problems
+- Scheduler not working
+- Hardware integration issues
+- Diagnostic commands
 
-1. Check if services are running:
-```bash
-docker-compose ps
-```
-
-2. Check logs:
-```bash
-docker-compose logs heatpump-service
-```
-
-3. Verify gateway is reachable:
-```bash
-ping 192.168.2.10  # Your gateway IP
-```
-
-4. Check Modbus port (should be 8899 for Waveshare)
-
-### UI shows "Disconnected"
-
-1. Check if the API service is running:
-```bash
-curl http://localhost:8000/health
-```
-
-2. Check browser console for CORS errors
-3. Verify API_URL in `ui/app.js` matches your setup
-
-### Real hardware not responding
-
-1. Verify gateway IP address and port
-2. Check network connectivity to the gateway
-3. Ensure DIP switches on LG R290 are set correctly (SW1-1: ON, SW1-2: ON)
-4. Verify Modbus parameters: 9600 bps, 1 stop bit, no parity
+See [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md).
 
 ## Extension
 
