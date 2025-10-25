@@ -1,0 +1,80 @@
+/* Screensaver Overlay Styles */
+
+.screensaver-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: var(--bg-primary);
+    z-index: 10000;
+    cursor: pointer;
+}
+
+.screensaver-overlay.active {
+    display: block;
+}
+
+.screensaver-info {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    z-index: 10001;
+    pointer-events: none;
+    animation: screensaverFloat 30s ease-in-out infinite;
+}
+
+.screensaver-time {
+    font-size: 72px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 20px;
+    text-shadow: 0 0 20px rgba(255, 255, 255, 0.3);
+}
+
+.screensaver-temp {
+    font-size: 48px;
+    font-weight: 600;
+    color: var(--accent-color);
+    margin-bottom: 40px;
+    text-shadow: 0 0 15px rgba(var(--accent-color-rgb), 0.5);
+}
+
+.screensaver-hint {
+    font-size: 18px;
+    color: var(--text-secondary);
+    opacity: 0.6;
+}
+
+@keyframes screensaverFloat {
+    0%, 100% {
+        transform: translate(-50%, -50%) translateY(0px) translateX(0px);
+    }
+    25% {
+        transform: translate(-50%, -50%) translateY(-30px) translateX(20px);
+    }
+    50% {
+        transform: translate(-50%, -50%) translateY(0px) translateX(-20px);
+    }
+    75% {
+        transform: translate(-50%, -50%) translateY(30px) translateX(15px);
+    }
+}
+
+/* Responsive adjustments for smaller screens */
+@media (max-width: 768px) {
+    .screensaver-time {
+        font-size: 56px;
+    }
+
+    .screensaver-temp {
+        font-size: 36px;
+    }
+
+    .screensaver-hint {
+        font-size: 14px;
+    }
+}
