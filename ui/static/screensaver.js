@@ -1,8 +1,9 @@
 /**
  * Screensaver module - Vanta.js HALO effect with inactivity timeout
+ * Kiosk mode: Starts with screensaver active, returns after 60s inactivity
  */
 
-const INACTIVITY_TIMEOUT = 2 * 60 * 1000; // 2 minutes in milliseconds
+const INACTIVITY_TIMEOUT = 60 * 1000; // 60 seconds in milliseconds
 
 class Screensaver {
     constructor() {
@@ -24,8 +25,9 @@ class Screensaver {
         // Click to wake
         this.overlay.addEventListener('click', () => this.deactivate());
 
-        // Start inactivity timer
-        this.resetInactivityTimer();
+        // Kiosk mode: Start with screensaver active on page load
+        // This prevents flashing/flipping on auto-reload or view switching
+        this.activate();
     }
 
     setupActivityListeners() {
