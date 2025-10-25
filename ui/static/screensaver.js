@@ -114,10 +114,10 @@ class Screensaver {
     }
 
     updateTemperature() {
-        // Get flow temperature from main UI
-        const flowTempElement = document.getElementById('flow-temp-value');
-        if (flowTempElement) {
-            this.tempElement.textContent = flowTempElement.textContent;
+        // Get indoor/room temperature from main UI
+        const indoorTempElement = document.getElementById('indoor-temp-value');
+        if (indoorTempElement) {
+            this.tempElement.textContent = indoorTempElement.textContent;
         }
     }
 
