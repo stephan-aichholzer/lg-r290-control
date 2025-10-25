@@ -50,3 +50,4 @@ networks:
     external: true
   modbus_default:
     external: true
+    name: heatpump_dashboard_default
