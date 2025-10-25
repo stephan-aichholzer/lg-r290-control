@@ -6,29 +6,6 @@
     /* Blue color for negative offset values */
     --blue-color: #3b82f6;
     --blue-color-rgb: 59, 130, 246;
-
-    /* Background colors */
-    --bg-primary: #000000;
-    --bg-secondary: #1a1a1a;
-    --bg-tertiary: #0a0a0a;
-    --bg-input: #1f2937;
-    --bg-elevated: #2d2d2d;
-
-    /* Surface and border colors */
-    --surface-dark: #374151;
-    --surface-medium: #4b5563;
-    --border-primary: #333;
-
-    /* Text colors */
-    --text-primary: #e5e7eb;
-    --text-secondary: #9ca3af;
-    --text-tertiary: #6b7280;
-    --text-muted: #d1d5db;
-
-    /* Accent colors */
-    --color-purple: #667eea;
-    --color-purple-rgb: 102, 126, 234;
-    --color-red: #ef4444;
 }
 
 * {
@@ -39,8 +16,8 @@
 
 body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background: var(--bg-primary);
-    color: var(--text-primary);
+    background: #000000;
+    color: #e5e7eb;
     min-height: 100vh;
     overflow-x: hidden;
 }
@@ -48,16 +25,77 @@ body {
 .container {
     width: 100%;
     min-height: 100vh;
-    background: var(--bg-primary);
+    background: #000000;
     display: flex;
     flex-direction: column;
 }
+
+/* Header removed - connection status now in left panel */
 
 /* Main content area */
 main {
     flex: 1;
     padding: 15px;
     overflow-y: auto;
+}
+
+/* Landscape layout: Simplified 2-column */
+@media (orientation: landscape) and (max-height: 768px) {
+    main {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        grid-template-rows: auto auto auto;
+        row-gap: 6px;
+        column-gap: 10px;
+        padding: 6px;
+    }
+
+    .control-panel {
+        grid-column: 1;
+        grid-row: 1 / 4;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        align-self: stretch;
+    }
+
+    .setpoint-control {
+        grid-column: 2;
+        grid-row: 1;
+    }
+
+    .temperature-display {
+        grid-column: 2;
+        grid-row: 2;
+    }
+
+    .thermostat-widget {
+        grid-column: 2;
+        grid-row: 3;
+    }
+
+    section {
+        margin-bottom: 0 !important;
+        padding: 8px !important;
+    }
+
+    section h2 {
+        font-size: 13px;
+        margin-bottom: 6px;
+    }
+
+    header {
+        padding: 6px 12px;
+    }
+
+    header h1 {
+        font-size: 16px;
+    }
+
+    footer {
+        padding: 4px 12px !important;
+        font-size: 10px;
+    }
 }
 
 /* Desktop layout: Traditional vertical */
@@ -70,14 +108,14 @@ main {
 section {
     margin-bottom: 15px;
     padding: 15px;
-    background: var(--bg-secondary);
+    background: #1a1a1a;
     border-radius: 8px;
-    border: 1px solid var(--border-primary);
+    border: 1px solid #333;
 }
 
 section h2 {
     margin-bottom: 12px;
-    color: var(--text-primary);
+    color: #e5e7eb;
     font-size: 16px;
     font-weight: 700;
     text-transform: uppercase;
@@ -96,7 +134,7 @@ section h2 {
 .switch-label {
     font-size: 14px;
     font-weight: 600;
-    color: var(--text-secondary);
+    color: #9ca3af;
     min-width: 35px;
     text-align: center;
 }
@@ -121,7 +159,7 @@ section h2 {
     left: 0;
     right: 0;
     bottom: 0;
-    background-color: var(--surface-medium);
+    background-color: #4b5563;
     transition: .4s;
     border-radius: 34px;
 }
@@ -159,13 +197,13 @@ input:checked + .slider:before {
 
 .status-indicator .label {
     font-weight: 600;
-    color: var(--text-secondary);
+    color: #9ca3af;
 }
 
 .status-indicator .value {
     font-weight: 700;
     font-size: 18px;
-    color: var(--color-purple);
+    color: #667eea;
 }
 
 /* Unified status badge style */
@@ -174,11 +212,11 @@ input:checked + .slider:before {
     align-items: center;
     gap: 8px;
     padding: 8px 14px;
-    background: var(--surface-dark);
+    background: #374151;
     border-radius: 12px;
     font-size: 16px;
     text-align: center;
-    border: 1px solid var(--surface-medium);
+    border: 1px solid #4b5563;
     font-weight: 700;
 }
 
@@ -187,7 +225,7 @@ input:checked + .slider:before {
     width: 12px;
     height: 12px;
     border-radius: 50%;
-    background: var(--text-tertiary);
+    background: #6b7280;
     box-shadow: 0 0 0 2px rgba(107, 114, 128, 0.2);
     transition: all 0.3s ease;
 }
@@ -198,532 +236,51 @@ input:checked + .slider:before {
     animation: pulse 2s infinite;
 }
 
-/* Setpoint Control */
-.slider-container {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-}
-
-.slider-container label {
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--text-secondary);
-}
-
-#temp-slider-value {
-    color: var(--text-primary);
-    font-size: 18px;
-    font-weight: 700;
-}
-
-#temp-slider {
-    width: 100%;
-    height: 6px;
-    border-radius: 5px;
-    background: var(--surface-dark);
-    outline: none;
-    -webkit-appearance: none;
-}
-
-#temp-slider::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 20px;
-    height: 20px;
-    border-radius: 50%;
-    background: var(--color-purple);
-    cursor: pointer;
-    box-shadow: 0 0 8px rgba(var(--color-purple-rgb), 0.6);
-}
-
-#temp-slider::-moz-range-thumb {
-    width: 20px;
-    height: 20px;
-    border-radius: 50%;
-    background: var(--color-purple);
-    cursor: pointer;
-    border: none;
-    box-shadow: 0 0 8px rgba(var(--color-purple-rgb), 0.6);
-}
-
-/* LG Auto Mode Offset Display */
-.offset-display {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 8px;
-    padding: 4px 0;
-}
-
-.offset-value {
-    font-size: 36px;
-    font-weight: 700;
-    color: var(--accent-color);
-    text-shadow: 0 0 10px rgba(var(--accent-color-rgb), 0.4);
-    min-width: 80px;
-    text-align: center;
-}
-
-.offset-value.negative {
-    color: var(--blue-color);
-    text-shadow: 0 0 10px rgba(var(--blue-color-rgb), 0.4);
-}
-
-.offset-scale {
-    display: flex;
-    gap: 10px;
-    font-size: 16px;
-    color: var(--text-primary);
-    font-weight: 700;
-    margin-top: 0;
-}
-
-.offset-scale span {
-    padding: 12px 16px;
-    background: var(--surface-dark);
-    border-radius: 8px;
-    min-width: 48px;
-    text-align: center;
-    border: 2px solid var(--surface-medium);
-    cursor: pointer;
-    transition: all 0.3s ease;
-}
-
-.offset-scale span:hover {
-    background: var(--accent-color);
-    color: #ffffff;
-    border-color: var(--accent-color);
-    box-shadow: 0 0 8px rgba(var(--accent-color-rgb), 0.5);
-    transform: scale(1.05);
-}
-
-.offset-scale span.zero {
-    color: var(--text-secondary);
-    background: var(--bg-input);
-    border: 2px solid var(--surface-dark);
-}
-
-.offset-scale span.zero:hover {
-    background: var(--accent-color);
-    color: #ffffff;
-    border-color: var(--accent-color);
-    box-shadow: 0 0 8px rgba(var(--accent-color-rgb), 0.5);
-}
-
-/* Active offset button (current value) - positive/zero values are orange */
-.offset-scale span.active {
-    background: var(--accent-color);
-    color: #ffffff;
-    border-color: var(--accent-color);
-    box-shadow: 0 0 12px rgba(var(--accent-color-rgb), 0.6);
-}
-
-/* Active offset button with negative value - blue color */
-.offset-scale span.active.negative {
-    background: var(--blue-color);
-    border-color: var(--blue-color);
-    box-shadow: 0 0 12px rgba(var(--blue-color-rgb), 0.6);
-}
-
-.offset-note {
-    font-size: 11px;
-    color: var(--text-tertiary);
-    font-style: italic;
-    text-align: center;
-    margin-top: 4px;
-}
-
-/* Footer */
-footer {
-    background: var(--bg-secondary);
-    border-top: 1px solid var(--border-primary);
-    padding: 10px 20px;
-    text-align: center;
-    color: var(--text-tertiary);
-    font-size: 11px;
-    flex-shrink: 0;
-}
-
-/* Scrollbar styling for dark mode */
-::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-}
-
-::-webkit-scrollbar-track {
-    background: var(--bg-secondary);
-}
-
-::-webkit-scrollbar-thumb {
-    background: var(--surface-dark);
-    border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-    background: var(--surface-medium);
-}
-
-/* Thermostat Widget */
-.thermostat-widget {
-    background: var(--bg-secondary);
-    border-radius: 8px;
-    border: 1px solid var(--border-primary);
-}
-
-.thermostat-content {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-}
-
-.mode-selector {
+/* Gauges */
+.gauge-grid {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 10px;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
 }
 
-.mode-btn {
-    padding: 16px 12px;
-    background: var(--surface-dark);
-    color: var(--text-primary);
-    border: 1px solid var(--surface-medium);
-    border-radius: 12px;
-    font-size: 14px;
-    font-weight: 700;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    min-height: 52px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.mode-btn:hover {
-    background: var(--surface-medium);
-    box-shadow: 0 0 8px rgba(var(--color-purple-rgb), 0.3);
-}
-
-.mode-btn.active {
-    background: var(--accent-color);
-    color: #ffffff;
-    border-color: var(--accent-color);
-    box-shadow: 0 0 8px rgba(var(--accent-color-rgb), 0.5);
-}
-
-.temp-control {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 16px;
-}
-
-.temp-label {
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--text-secondary);
-}
-
-.temp-display {
-    font-size: 24px;
-    font-weight: 700;
-    color: var(--text-primary);
-    min-width: 90px;
-    text-align: center;
-}
-
-.temp-btn {
-    width: 50px;
-    height: 50px;
-    background: var(--surface-dark);
-    color: var(--text-primary);
-    border: 1px solid var(--surface-medium);
-    border-radius: 50%;
-    font-size: 28px;
-    font-weight: 700;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    line-height: 1;
-}
-
-.temp-btn:hover {
-    background: var(--surface-medium);
-    box-shadow: 0 0 8px rgba(var(--color-purple-rgb), 0.5);
-    transform: scale(1.05);
-}
-
-.temp-btn:active {
-    transform: scale(0.95);
-}
-
-/* Temperature Badge Display */
-.temperature-display {
-    background: var(--bg-input);
-    border-radius: 16px;
-    padding: 12px;
-    border: 1px solid var(--surface-dark);
-}
-
-.temperature-display h2 {
-    margin: 0 0 12px 0;
-    font-size: 14px;
-    color: var(--text-primary);
-    font-weight: 700;
-}
-
-.temp-badges {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 10px;
-}
-
-.temp-badge {
-    background: var(--bg-tertiary);
-    border: 1px solid var(--surface-dark);
-    border-radius: 12px;
-    padding: 12px;
-    text-align: center;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.temp-badge-label {
-    font-size: 14px;
-    color: var(--text-secondary);
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-
-.temp-badge-value {
-    font-size: 32px;
-    font-weight: 700;
-    color: var(--text-primary);
-    line-height: 1;
-}
-
-/* Flow temperature gets red color highlight */
-.temp-badge-flow .temp-badge-value {
-    color: var(--color-red);
-}
-
-/* LG Mode Control (within Power Control panel) */
-.lg-mode-switch-container {
-    margin-top: 12px;
-    margin-bottom: 8px;
-}
-
-.lg-mode-status-text {
-    text-align: center;
-    font-size: 11px;
-    color: var(--text-secondary);
-    font-weight: 600;
-    margin-top: 4px;
-    margin-bottom: 12px;
-}
-
-/* Modal Dialog */
-.modal-overlay {
-    display: none;
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background-color: rgba(0, 0, 0, 0.75);
-    z-index: 9999;
-    backdrop-filter: blur(4px);
-    animation: fadeIn 0.2s ease-out;
-}
-
-.modal-overlay.active {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.modal-dialog {
-    background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-elevated) 100%);
-    border-radius: 16px;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-    min-width: 320px;
-    max-width: 90%;
-    animation: slideUp 0.3s ease-out;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.modal-header {
-    padding: 20px 24px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.modal-header h3 {
-    margin: 0;
-    font-size: 20px;
-    font-weight: 600;
-    color: #ffffff;
-}
-
-.modal-body {
-    padding: 24px;
-}
-
-.modal-body p {
-    margin: 0;
-    font-size: 16px;
-    line-height: 1.6;
-    color: var(--text-muted);
-}
-
-.modal-footer {
-    padding: 16px 24px;
-    display: flex;
-    gap: 12px;
-    justify-content: flex-end;
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.modal-btn {
-    padding: 12px 24px;
-    border: none;
-    border-radius: 8px;
-    font-size: 15px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    min-width: 100px;
-}
-
-.modal-btn-cancel {
-    background: rgba(255, 255, 255, 0.1);
-    color: var(--text-muted);
-}
-
-.modal-btn-cancel:hover {
-    background: rgba(255, 255, 255, 0.15);
-    color: #ffffff;
-}
-
-.modal-btn-confirm {
-    background: linear-gradient(135deg, var(--color-purple) 0%, #764ba2 100%);
-    color: #ffffff;
-}
-
-.modal-btn-confirm:hover {
-    background: linear-gradient(135deg, #5568d3 0%, #6a3f8f 100%);
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(var(--color-purple-rgb), 0.4);
-}
-
-.modal-btn-confirm:active {
-    transform: translateY(0);
-}
-
-@keyframes fadeIn {
-    from {
-        opacity: 0;
-    }
-    to {
-        opacity: 1;
-    }
-}
-
-@keyframes slideUp {
-    from {
-        opacity: 0;
-        transform: translateY(20px) scale(0.95);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0) scale(1);
-    }
-}
-
-/* LANDSCAPE RESPONSIVE LAYOUT - Consolidated single media query */
 @media (orientation: landscape) and (max-height: 768px) {
-    /* Main grid layout */
-    main {
-        display: grid;
-        grid-template-columns: auto 1fr;
-        grid-template-rows: auto auto auto;
-        row-gap: 6px;
-        column-gap: 10px;
-        padding: 6px;
+    .gauge-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8px;
     }
 
-    .control-panel {
-        grid-column: 1;
-        grid-row: 1 / 4;
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
-        align-self: stretch;
+    .gauge {
+        width: 110px !important;
+        margin: 0 auto;
+    }
+
+    .gauge-value {
+        font-size: 16px !important;
+    }
+
+    .gauge-label {
+        font-size: 9px;
+        margin-bottom: 1px;
+    }
+
+    .gauge-subtitle {
+        font-size: 8px;
+        margin-top: 0px;
+    }
+
+    /* Reduce flow temperature section height */
+    .gauges h2 {
+        font-size: 11px !important;
+        margin-bottom: 2px !important;
     }
 
     .setpoint-control {
-        grid-column: 2;
-        grid-row: 1;
         padding: 6px 10px !important;
         display: flex;
         flex-direction: column;
         justify-content: center;
     }
 
-    .temperature-display {
-        grid-column: 2;
-        grid-row: 2;
-        padding: 6px 10px;
-    }
-
-    .thermostat-widget {
-        grid-column: 2;
-        grid-row: 3;
-        padding: 6px 10px !important;
-    }
-
-    /* Section sizing */
-    section {
-        margin-bottom: 0 !important;
-        padding: 8px !important;
-    }
-
-    section h2 {
-        font-size: 13px;
-        margin-bottom: 6px;
-    }
-
-    /* Power controls */
-    .power-switch-container {
-        margin-bottom: 10px;
-    }
-
-    .status-indicator {
-        gap: 4px;
-        font-size: 12px;
-    }
-
-    .status-indicator .value {
-        font-size: 14px;
-    }
-
-    .status-badge-compact {
-        font-size: 13px;
-        padding: 6px 10px;
-        gap: 6px;
-    }
-
-    .status-dot {
-        width: 10px;
-        height: 10px;
-    }
-
-    /* Temperature setpoint controls */
     .setpoint-control h2 {
         font-size: 13px;
         margin-bottom: 4px;
@@ -760,7 +317,44 @@ footer {
         height: 14px;
     }
 
-    /* LG Auto Mode Offset */
+    .power-switch-container {
+        margin-bottom: 10px;
+    }
+
+    .status-indicator {
+        gap: 4px;
+        font-size: 12px;
+    }
+
+    .status-indicator .value {
+        font-size: 14px;
+    }
+
+    .status-badge-compact {
+        font-size: 13px;
+        padding: 6px 10px;
+        gap: 6px;
+    }
+
+    .status-dot {
+        width: 10px;
+        height: 10px;
+    }
+
+    .metric-card {
+        padding: 8px;
+    }
+
+    .metric-label {
+        font-size: 10px;
+        margin-bottom: 4px;
+    }
+
+    .metric-value {
+        font-size: 14px;
+    }
+
+    /* LG Auto Mode Offset - Landscape adjustments */
     .offset-display {
         gap: 4px;
         padding: 2px 0;
@@ -786,8 +380,465 @@ footer {
         font-size: 9px;
         margin-top: 2px;
     }
+}
 
-    /* Temperature display badges */
+.gauge-container {
+    text-align: center;
+}
+
+.gauge-label {
+    font-weight: 600;
+    color: #9ca3af;
+    margin-bottom: 8px;
+    font-size: 12px;
+}
+
+.gauge-subtitle {
+    font-size: 10px;
+    color: #6b7280;
+    margin-top: 5px;
+    font-style: italic;
+}
+
+.gauge {
+    position: relative;
+    width: 160px;
+    margin: 0 auto;
+}
+
+.gauge-svg {
+    width: 100%;
+    height: auto;
+}
+
+.gauge-bg {
+    fill: none;
+    stroke: #374151;
+    stroke-width: 12;
+    stroke-linecap: round;
+}
+
+.gauge-fill {
+    fill: none;
+    stroke: #667eea;
+    stroke-width: 12;
+    stroke-linecap: round;
+    transition: stroke-dashoffset 0.5s ease;
+}
+
+.gauge-fill-red {
+    stroke: #ef4444 !important;
+}
+
+.gauge-value {
+    position: absolute;
+    top: 60%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 20px;
+    font-weight: 700;
+    color: #e5e7eb;
+}
+
+.gauge-value-red {
+    color: #ef4444 !important;
+}
+
+/* Metrics */
+.metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+}
+
+@media (orientation: landscape) and (max-height: 768px) {
+    .metrics-grid {
+        grid-template-columns: 1fr;
+        gap: 8px;
+    }
+}
+
+.metric-card {
+    background: #0a0a0a;
+    padding: 12px;
+    border-radius: 6px;
+    text-align: center;
+    border: 1px solid #333;
+}
+
+.metric-label {
+    font-size: 11px;
+    color: #9ca3af;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.metric-value {
+    font-size: 18px;
+    font-weight: 700;
+    color: #667eea;
+}
+
+/* Setpoint Control */
+.slider-container {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.slider-container label {
+    font-size: 14px;
+    font-weight: 600;
+    color: #9ca3af;
+}
+
+#temp-slider-value {
+    color: #e5e7eb;
+    font-size: 18px;
+    font-weight: 700;
+}
+
+#temp-slider {
+    width: 100%;
+    height: 6px;
+    border-radius: 5px;
+    background: #374151;
+    outline: none;
+    -webkit-appearance: none;
+}
+
+#temp-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #667eea;
+    cursor: pointer;
+    box-shadow: 0 0 8px rgba(102, 126, 234, 0.6);
+}
+
+#temp-slider::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #667eea;
+    cursor: pointer;
+    border: none;
+    box-shadow: 0 0 8px rgba(102, 126, 234, 0.6);
+}
+
+/* LG Auto Mode Offset Display */
+.offset-display {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 0;
+}
+
+.offset-value {
+    font-size: 36px;
+    font-weight: 700;
+    color: var(--accent-color);
+    text-shadow: 0 0 10px rgba(var(--accent-color-rgb), 0.4);
+    min-width: 80px;
+    text-align: center;
+}
+
+.offset-value.negative {
+    color: var(--blue-color);
+    text-shadow: 0 0 10px rgba(var(--blue-color-rgb), 0.4);
+}
+
+.offset-scale {
+    display: flex;
+    gap: 10px;
+    font-size: 16px;
+    color: #e5e7eb;
+    font-weight: 700;
+    margin-top: 0;
+}
+
+.offset-scale span {
+    padding: 12px 16px;
+    background: #374151;
+    border-radius: 8px;
+    min-width: 48px;
+    text-align: center;
+    border: 2px solid #4b5563;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.offset-scale span:hover {
+    background: var(--accent-color);
+    color: #ffffff;
+    border-color: var(--accent-color);
+    box-shadow: 0 0 8px rgba(var(--accent-color-rgb), 0.5);
+    transform: scale(1.05);
+}
+
+.offset-scale span.zero {
+    color: #9ca3af;
+    background: #1f2937;
+    border: 2px solid #374151;
+}
+
+.offset-scale span.zero:hover {
+    background: var(--accent-color);
+    color: #ffffff;
+    border-color: var(--accent-color);
+    box-shadow: 0 0 8px rgba(var(--accent-color-rgb), 0.5);
+}
+
+/* Active offset button (current value) - positive/zero values are orange */
+.offset-scale span.active {
+    background: var(--accent-color);
+    color: #ffffff;
+    border-color: var(--accent-color);
+    box-shadow: 0 0 12px rgba(var(--accent-color-rgb), 0.6);
+}
+
+/* Active offset button with negative value - blue color */
+.offset-scale span.active.negative {
+    background: var(--blue-color);
+    border-color: var(--blue-color);
+    box-shadow: 0 0 12px rgba(var(--blue-color-rgb), 0.6);
+}
+
+.offset-note {
+    font-size: 11px;
+    color: #6b7280;
+    font-style: italic;
+    text-align: center;
+    margin-top: 4px;
+}
+
+/* Error Section */
+.error-section {
+    background: #2d1a1a;
+    border-left: 4px solid #ef4444;
+    border: 1px solid #ef4444;
+}
+
+.error-box {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: #fca5a5;
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.error-icon {
+    font-size: 20px;
+    color: #ef4444;
+}
+
+/* Footer */
+footer {
+    background: #1a1a1a;
+    border-top: 1px solid #333;
+    padding: 10px 20px;
+    text-align: center;
+    color: #6b7280;
+    font-size: 11px;
+    flex-shrink: 0;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) and (orientation: portrait) {
+    .gauge-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .metrics-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .power-controls {
+        flex-direction: column;
+    }
+}
+
+/* Scrollbar styling for dark mode */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #1a1a1a;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #374151;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #4b5563;
+}
+
+/* Thermostat Widget */
+.thermostat-widget {
+    background: #1a1a1a;
+    border-radius: 8px;
+    border: 1px solid #333;
+}
+
+.thermostat-content {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.mode-selector {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+}
+
+.mode-btn {
+    padding: 16px 12px;
+    background: #374151;
+    color: #e5e7eb;
+    border: 1px solid #4b5563;
+    border-radius: 12px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    min-height: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.mode-btn:hover {
+    background: #4b5563;
+    box-shadow: 0 0 8px rgba(102, 126, 234, 0.3);
+}
+
+.mode-btn.active {
+    background: var(--accent-color);
+    color: #ffffff;
+    border-color: var(--accent-color);
+    box-shadow: 0 0 8px rgba(var(--accent-color-rgb), 0.5);
+}
+
+.temp-control {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+}
+
+.temp-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: #9ca3af;
+}
+
+.temp-display {
+    font-size: 24px;
+    font-weight: 700;
+    color: #e5e7eb;
+    min-width: 90px;
+    text-align: center;
+}
+
+.temp-btn {
+    width: 50px;
+    height: 50px;
+    background: #374151;
+    color: #e5e7eb;
+    border: 1px solid #4b5563;
+    border-radius: 50%;
+    font-size: 28px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+}
+
+.temp-btn:hover {
+    background: #4b5563;
+    box-shadow: 0 0 8px rgba(102, 126, 234, 0.5);
+    transform: scale(1.05);
+}
+
+.temp-btn:active {
+    transform: scale(0.95);
+}
+
+/* Removed old thermostat pump styles - now using unified .status-badge-compact */
+
+/* Temperature Badge Display (replaces gauges) */
+.temperature-display {
+    background: #1f2937;
+    border-radius: 16px;
+    padding: 12px;
+    border: 1px solid #374151;
+}
+
+.temperature-display h2 {
+    margin: 0 0 12px 0;
+    font-size: 14px;
+    color: #e5e7eb;
+    font-weight: 700;
+}
+
+.temp-badges {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+}
+
+.temp-badge {
+    background: #0a0a0a;
+    border: 1px solid #374151;
+    border-radius: 12px;
+    padding: 12px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.temp-badge-label {
+    font-size: 14px;
+    color: #9ca3af;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.temp-badge-value {
+    font-size: 32px;
+    font-weight: 700;
+    color: #e5e7eb;
+    line-height: 1;
+}
+
+/* Flow temperature gets red color highlight */
+.temp-badge-flow .temp-badge-value {
+    color: #ef4444;
+}
+
+/* Landscape responsive adjustments for temperature display */
+@media (orientation: landscape) and (max-height: 768px) {
+    .temperature-display {
+        padding: 6px 10px;
+    }
+
     .temperature-display h2 {
         font-size: 11px;
         margin-bottom: 6px;
@@ -809,8 +860,14 @@ footer {
     .temp-badge-value {
         font-size: 24px;
     }
+}
 
-    /* Thermostat widget */
+/* Landscape responsive adjustments for thermostat */
+@media (orientation: landscape) and (max-height: 768px) {
+    .thermostat-widget {
+        padding: 6px 10px !important;
+    }
+
     .thermostat-content {
         gap: 8px;
     }
@@ -836,20 +893,142 @@ footer {
         font-size: 12px;
     }
 
-    /* Footer */
-    footer {
-        padding: 4px 12px !important;
-        font-size: 10px;
+    /* Removed pump-specific overrides - using unified .status-dot sizing */
+}
+
+/* Single gauge centering */
+.gauge-container-single {
+    text-align: center;
+}
+
+/* LG Mode Control (within Power Control panel) */
+.lg-mode-switch-container {
+    margin-top: 12px;
+    margin-bottom: 8px;
+}
+
+.lg-mode-status-text {
+    text-align: center;
+    font-size: 11px;
+    color: #9ca3af;
+    font-weight: 600;
+    margin-top: 4px;
+    margin-bottom: 12px;
+}
+
+/* Modal Dialog */
+.modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.75);
+    z-index: 9999;
+    backdrop-filter: blur(4px);
+    animation: fadeIn 0.2s ease-out;
+}
+
+.modal-overlay.active {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-dialog {
+    background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+    border-radius: 16px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    min-width: 320px;
+    max-width: 90%;
+    animation: slideUp 0.3s ease-out;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.modal-header {
+    padding: 20px 24px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.modal-header h3 {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 600;
+    color: #ffffff;
+}
+
+.modal-body {
+    padding: 24px;
+}
+
+.modal-body p {
+    margin: 0;
+    font-size: 16px;
+    line-height: 1.6;
+    color: #d1d5db;
+}
+
+.modal-footer {
+    padding: 16px 24px;
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.modal-btn {
+    padding: 12px 24px;
+    border: none;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    min-width: 100px;
+}
+
+.modal-btn-cancel {
+    background: rgba(255, 255, 255, 0.1);
+    color: #d1d5db;
+}
+
+.modal-btn-cancel:hover {
+    background: rgba(255, 255, 255, 0.15);
+    color: #ffffff;
+}
+
+.modal-btn-confirm {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: #ffffff;
+}
+
+.modal-btn-confirm:hover {
+    background: linear-gradient(135deg, #5568d3 0%, #6a3f8f 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.modal-btn-confirm:active {
+    transform: translateY(0);
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
     }
 }
 
-/* Portrait mobile adjustments */
-@media (max-width: 768px) and (orientation: portrait) {
-    .temp-badges {
-        grid-template-columns: 1fr;
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px) scale(0.95);
     }
-
-    .power-controls {
-        flex-direction: column;
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
     }
 }
