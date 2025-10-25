@@ -3,6 +3,7 @@
 
 import * as HeatPump from './heatpump.js';
 import * as Thermostat from './thermostat.js';
+import { initScreensaver } from './screensaver.js';
 
 // Initialize application
 document.addEventListener('DOMContentLoaded', async () => {
@@ -15,6 +16,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Initialize thermostat control (async - sets defaults)
     await Thermostat.init();
     console.log('Thermostat module initialized');
+
+    // Initialize screensaver
+    initScreensaver();
+    console.log('Screensaver module initialized');
 
     console.log('System ready');
 });

@@ -8,8 +8,20 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black">
     <title>LG R290 Heat Pump</title>
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="screensaver.css">
+    <!-- Vanta.js dependencies (local) -->
+    <script src="vendor/three.min.js"></script>
+    <script src="vendor/vanta.halo.min.js"></script>
 </head>
 <body>
+    <!-- Screensaver Overlay -->
+    <div class="screensaver-overlay" id="screensaver-overlay">
+        <div class="screensaver-info">
+            <div class="screensaver-time" id="screensaver-time">00:00</div>
+            <div class="screensaver-temp" id="screensaver-temp">--.-°C</div>
+        </div>
+    </div>
+
     <!-- Confirmation Modal -->
     <div class="modal-overlay" id="modal-overlay">
         <div class="modal-dialog">
