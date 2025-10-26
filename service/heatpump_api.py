@@ -409,8 +409,7 @@ async def get_lg_auto_offset_config():
     - Unprocessed temperature values
 
     **Note**: This is a debug endpoint. For normal operations, use `GET /status` instead.
-    """,
-    tags=["Debug"]
+    """
 )
 async def get_raw_registers():
     """Get raw status data from status.json (for debugging)."""
