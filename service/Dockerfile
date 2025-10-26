@@ -16,7 +16,7 @@ COPY lg_r290_modbus.py /app/
 COPY monitor_and_keep_alive.py /app/
 
 # Copy application files
-COPY service/main.py service/scheduler.py /app/
+COPY service/main.py service/scheduler.py service/schedule_api.py service/heatpump_api.py /app/
 COPY service/config.json service/schedule.json /app/
 COPY service/start.sh /app/
 COPY service/healthcheck.sh /app/
