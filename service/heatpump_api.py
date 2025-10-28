@@ -176,14 +176,15 @@ async def set_temperature_setpoint_endpoint(setpoint: TemperatureSetpoint):
         raise HTTPException(status_code=400, detail="Temperature must be between 20.0 and 60.0°C")
 
     try:
-        # READ-ONLY MODE: Modbus write disabled
-        # success = await set_target_temperature(_modbus_client, setpoint.temperature)
-        success = False  # Disabled
-        if False and success:
-            logger.info(f"Flow temperature setpoint changed to {setpoint.temperature}°C")
+        # Write target temperature to register 40003
+        success = await set_target_temperature(_modbus_client, setpoint.temperature)
+        if success:
+            logger.info(f"✓ Flow temperature setpoint changed to {setpoint.temperature}°C")
             return {"status": "success", "target_temperature": setpoint.temperature}
         else:
             raise HTTPException(status_code=500, detail="Failed to set temperature")
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error setting temperature: {e}")
         raise HTTPException(status_code=500, detail=str(e))
