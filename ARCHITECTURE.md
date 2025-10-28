@@ -2,11 +2,10 @@
 
 ## System Overview
 
-The LG R290 Heat Pump Control System is a containerized, microservices-based architecture designed for monitoring and controlling an LG R290 7kW heat pump via Modbus TCP protocol. The system provides a clean separation of concerns with three main services that can run in development (mock) or production (real hardware) modes.
+The LG R290 Heat Pump Control System is a containerized, microservices-based architecture designed for monitoring and controlling an LG R290 7kW heat pump via Modbus TCP protocol. The system provides a clean separation of concerns with three main services that can run in production mode with real LG R290 hardware.
 
 ## Design Goals
 
-1. **Testability**: Develop and test without physical hardware using a JSON-backed mock
 2. **Modularity**: Clean separation between Modbus communication, business logic, and UI
 3. **Maintainability**: Simple, well-documented codebase with standard technologies
 4. **Portability**: Containerized deployment on Raspberry Pi or any Docker-capable platform
@@ -66,49 +65,20 @@ The LG R290 Heat Pump Control System is a containerized, microservices-based arc
 ┌───────────────────────────▼─────────────────────────────────┐
 │                     Modbus Protocol Layer                   │
 │                                                             │
-│  ┌────────────────────┐         ┌─────────────────────────┐│
-│  │  heatpump-mock     │   OR    │  Real Hardware          ││
-│  │  (pymodbus server) │         │  (Waveshare Gateway)    ││
-│  │                    │         │                         ││
-│  │  - Port 5020       │         │  - LG R290 Heat Pump    ││
-│  │  - JSON backend    │         │  - RS485 Modbus         ││
-│  │  - registers.json  │         │  - Port 502             ││
-│  └────────────────────┘         └─────────────────────────┘│
+│  ┌─────────────────────────────────────────────────────────┐│
+│  │                    Real Hardware                        ││
+│  │            (Waveshare RS485-to-Ethernet Gateway)        ││
+│  │                                                         ││
+│  │  - LG R290 Heat Pump (Modbus Device ID: 7)             ││
+│  │  - RS485 Modbus RTU → TCP conversion                   ││
+│  │  - Gateway: 192.168.2.10:8899                          ││
+│  └─────────────────────────────────────────────────────────┘│
 └─────────────────────────────────────────────────────────────┘
 ```
 
 ## Service Details
 
-### 1. heatpump-mock (Mock Modbus Server)
-
-**Purpose**: Simulate the LG R290 heat pump Modbus interface for development and testing.
-
-**Technology**: Python 3.11, pymodbus 3.6.4
-
-**Key Features**:
-- Async Modbus TCP server (pymodbus `StartAsyncTcpServer`)
-- JSON-backed register storage (`registers.json`)
-- Supports all Modbus function codes: Coils, Discrete Inputs, Input Registers, Holding Registers
-- Automatic persistence: Write operations update the JSON file
-- Configurable device identification
-
-**Data Flow**:
-1. Loads initial register values from `registers.json` on startup
-2. Serves Modbus requests on port 5020 (or 502)
-3. Writes are synchronized back to JSON file for persistence
-4. JSON file can be manually edited for testing different scenarios
-
-**Files**:
-- `mock/modbus_server.py`: Main server implementation
-- `mock/registers.json`: Register definitions and values
-- `mock/Dockerfile`: Container build configuration
-
-**Configuration**:
-- Port: 502 (internal), 5020 (external)
-- Unit ID: 1
-- Register file: `/app/registers.json` (mounted volume)
-
-### 2. heatpump-service (FastAPI Backend)
+### 1. heatpump-service (FastAPI Backend)
 
 **Purpose**: Provide REST API for heat pump monitoring and control, abstracting Modbus complexity.
 
@@ -126,7 +96,7 @@ The LG R290 Heat Pump Control System is a containerized, microservices-based arc
 - Thermostat integration: Auto-adjusts offset based on ECO/AUTO/ON/OFF modes
 
 **Data Flow**:
-1. On startup: Connect to Modbus TCP server (mock or real)
+1. On startup: Connect to Modbus TCP server via Waveshare gateway
 2. Background task: Poll all configured registers every 5 seconds
 3. Cache: Store latest values in memory
 4. API requests: Serve cached data (fast, non-blocking)
@@ -145,7 +115,7 @@ The LG R290 Heat Pump Control System is a containerized, microservices-based arc
 
 **Configuration**: Environment variables for Modbus connection, polling intervals, and API integration. See [docs/DEPLOYMENT.md](../docs/DEPLOYMENT.md) for complete reference.
 
-### 3. heatpump-ui (Web Interface)
+### 2. heatpump-ui (Web Interface)
 
 **Purpose**: User-friendly web interface for monitoring and controlling the heat pump.
 
@@ -300,7 +270,7 @@ For complete register mapping, addressing details, and data formats, see [MODBUS
 
 ## Deployment
 
-The system is deployed using Docker Compose with separate services for mock server, API backend, and web UI. It supports both development mode (with mock hardware) and production mode (real LG R290 hardware).
+The system is deployed using Docker Compose with two main services: API backend and web UI. It connects directly to the LG R290 heat pump via Modbus TCP.
 
 For complete deployment instructions, Docker configuration, network setup, and environment variables, see [docs/DEPLOYMENT.md](../docs/DEPLOYMENT.md).
 
@@ -323,7 +293,6 @@ For complete deployment instructions, Docker configuration, network setup, and e
 1. Browser → POST http://localhost:8000/power {"power_on": true}
 2. FastAPI → await client.write_coil(0, True, slave=1)
 3. Modbus Server → Update coil register
-4. Mock → Save to registers.json
 5. FastAPI → Update cache immediately
 6. FastAPI → Return success response
 7. Browser → Poll status (500ms later)
@@ -344,7 +313,6 @@ Every 5 seconds:
 
 ### Adding New Sensors/Actuators
 
-1. **Update Mock** (`mock/registers.json`):
    ```json
    "input_registers": {
      "30015": {
@@ -476,7 +444,7 @@ docker-compose logs -f [service-name]
 ## Testing Strategy
 
 1. **Unit Tests**: Test Modbus client and API endpoints independently
-2. **Integration Tests**: Test full stack with mock server
+2. **Integration Tests: Test full stack with real heat pump
 3. **Manual Testing**: Edit `registers.json` to simulate edge cases
 4. **Load Testing**: Verify performance under continuous polling
 5. **Hardware Testing**: Final validation with real LG R290

@@ -45,13 +45,12 @@ External integration with **shelly_bt_temp** project (separate repository) via A
 
 ## Architecture
 
-The system consists of three Docker services:
+The system consists of two Docker services:
 
-1. **heatpump-mock** (development only): Mock Modbus TCP server for testing
-2. **heatpump-service**: FastAPI service with AsyncModbusTcpClient for Modbus communication
-3. **heatpump-ui**: Nginx-served HTML5 interface for visualization and control
+1. **heatpump-service**: FastAPI service with AsyncModbusTcpClient for Modbus communication
+2. **heatpump-ui**: Nginx-served HTML5 interface for visualization and control
 
-In production, only services 2 and 3 run, connecting to real LG R290 hardware via Waveshare RS485-to-Ethernet gateway.
+The system connects to the LG R290 heat pump via a Waveshare RS485-to-Ethernet gateway using Modbus TCP protocol.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed system design.
 
@@ -105,26 +104,18 @@ http://<raspberry-pi-ip>:8002/docs
 Configuration is managed via environment variables in `docker-compose.yml` and `.env` file.
 
 **Key settings:**
-- `MODBUS_HOST` - Modbus TCP host (container name or IP address)
-- `MODBUS_PORT` - Modbus TCP port (typically 502 or 8899 for Waveshare)
-- `MODBUS_UNIT_ID` - Modbus slave/unit ID (typically 1 for mock, 5 or 7 for real hardware)
-- `POLL_INTERVAL` - Polling interval in seconds (default: 5)
+- `MODBUS_HOST` - Waveshare gateway IP address
+- `MODBUS_PORT` - Modbus TCP port (8899 for Waveshare)
+- `MODBUS_UNIT_ID` - LG heat pump Modbus device ID (typically 5 or 7)
+- `POLL_INTERVAL` - Polling interval in seconds (default: 20)
 - `THERMOSTAT_API_URL` - Thermostat API URL (optional, for thermostat integration)
 
-**Example `.env` for development (mock server):**
-```bash
-MODBUS_HOST=heatpump-mock
-MODBUS_PORT=502
-MODBUS_UNIT_ID=1
-POLL_INTERVAL=5
-```
-
-**Example `.env` for production (real hardware):**
+**Example `.env` for production:**
 ```bash
 MODBUS_HOST=192.168.2.10       # Your Waveshare gateway IP
-MODBUS_PORT=8899               # Gateway port (502 or 8899 depending on model)
-MODBUS_UNIT_ID=5               # LG heat pump device ID (check your manual)
-POLL_INTERVAL=30               # Slower polling for shared RS-485 bus
+MODBUS_PORT=8899               # Waveshare gateway port
+MODBUS_UNIT_ID=7               # LG heat pump device ID (check your installation)
+POLL_INTERVAL=20               # Polling interval to maintain external control
 THERMOSTAT_API_URL=http://iot-api:8000  # Optional thermostat integration
 ```
 
@@ -219,28 +210,17 @@ For complete API reference with all endpoints, schemas, and examples, see [docs/
 
 ## Usage
 
-### Development Mode (Mock Server)
-
-Default configuration uses mock Modbus server for testing without hardware:
-
-```bash
-docker-compose up -d
-```
-
-All three services run, including `heatpump-mock` which simulates the heat pump.
-
-### Production Deployment (Real Hardware)
+### Deployment
 
 1. Configure `.env` with your Waveshare gateway settings:
 ```bash
 MODBUS_HOST=192.168.2.10
 MODBUS_PORT=8899
-MODBUS_UNIT_ID=5
+MODBUS_UNIT_ID=7
+POLL_INTERVAL=20
 ```
 
-2. (Optional) Comment out or remove `heatpump-mock` service from `docker-compose.yml`
-
-3. Start services:
+2. Start services:
 ```bash
 docker-compose up -d
 ```
@@ -298,10 +278,6 @@ lg_r290_control/
 │   │   ├── heatpump.js         # Heat pump control
 │   │   └── thermostat.js       # Thermostat display
 │   └── nginx.conf
-├── mock/                       # Mock server (development)
-│   ├── Dockerfile
-│   ├── modbus_server.py
-│   └── registers.json
 └── docs/                       # Documentation
     ├── API_REFERENCE.md
     ├── DEPLOYMENT.md

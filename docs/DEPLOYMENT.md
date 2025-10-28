@@ -7,7 +7,6 @@
 git clone https://github.com/stephan-aichholzer/lg-r290-control.git
 cd lg-r290-control
 
-# Start with mock server (development)
 docker-compose up -d
 
 # Access UI
@@ -18,7 +17,6 @@ http://localhost:8080
 
 | Service | Container | Port | Description |
 |---------|-----------|------|-------------|
-| **heatpump-mock** | lg_r290_mock | 5020→502 | Mock Modbus TCP server |
 | **heatpump-service** | lg_r290_service | 8002→8000 | FastAPI backend |
 | **heatpump-ui** | lg_r290_ui | 8080→80 | Nginx web UI |
 
@@ -30,8 +28,8 @@ Configure in `docker-compose.yml` or `.env` file:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `MODBUS_HOST` | `heatpump-mock` | Modbus TCP host (container name or IP) |
-| `MODBUS_PORT` | `502` | Modbus TCP port (502 for real hardware, 502 internal for mock) |
+| `MODBUS_HOST` | `192.168.2.10` | Modbus TCP host (container name or IP) |
+| `MODBUS_PORT` | `502` | Modbus TCP port (8899 for Waveshare gateway) |
 | `MODBUS_UNIT_ID` | `1` | Modbus slave/unit ID |
 | `POLL_INTERVAL` | `5` | Status polling interval (seconds) |
 | `THERMOSTAT_API_URL` | `http://iot-api:8000` | Thermostat API URL (container name for Docker) |
@@ -41,7 +39,7 @@ Configure in `docker-compose.yml` or `.env` file:
 
 ```bash
 # Development (Mock)
-MODBUS_HOST=heatpump-mock
+MODBUS_HOST=192.168.2.10
 MODBUS_PORT=502
 THERMOSTAT_API_URL=http://iot-api:8000
 
@@ -65,7 +63,7 @@ Use mock Modbus server for testing without hardware:
 ```yaml
 # docker-compose.yml (default)
 environment:
-  - MODBUS_HOST=heatpump-mock  # Mock server
+  - MODBUS_HOST=192.168.2.10  # Mock server
   - MODBUS_PORT=502
 ```
 
