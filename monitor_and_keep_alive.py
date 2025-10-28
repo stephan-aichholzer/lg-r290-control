@@ -15,6 +15,7 @@ read from the cache instead of querying Modbus directly.
 import asyncio
 import json
 import logging
+import os
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -30,7 +31,7 @@ from lg_r290_modbus import connect_gateway, read_all_registers
 # ============================================================================
 
 # Polling interval (seconds) - maintains external control
-POLL_INTERVAL = 30
+POLL_INTERVAL = int(os.getenv('POLL_INTERVAL', '30'))
 
 # Status cache file location
 STATUS_FILE = Path("/app/status.json") if Path("/app").exists() else Path("status.json")

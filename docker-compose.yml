@@ -15,7 +15,7 @@ services:
       - MODBUS_HOST=${MODBUS_HOST:-192.168.2.10}  # Waveshare gateway IP
       - MODBUS_PORT=${MODBUS_PORT:-8899}  # Waveshare gateway port
       - MODBUS_UNIT_ID=${MODBUS_UNIT_ID:-7}  # LG Therma V device ID
-      - POLL_INTERVAL=${POLL_INTERVAL:-10}  # Proven interval for continuous polling
+      - POLL_INTERVAL=${POLL_INTERVAL:-20}  # Polling interval in seconds (maintains external control)
       - THERMOSTAT_API_URL=${THERMOSTAT_API_URL:-http://iot-api:8000}
       - TZ=${TZ:-Europe/Vienna}
     networks:
