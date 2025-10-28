@@ -8,6 +8,7 @@ let userInteractingWithSlider = false;
 let pendingSliderValue = null;  // Track the temperature value we're setting
 let pendingOffsetValue = null;  // Track the offset value we're setting
 let pendingPowerState = null;   // Track the power state we're setting
+let pendingOpMode = null;       // Track the LG operating mode we're setting
 
 // UI Elements
 const elements = {
@@ -241,14 +242,29 @@ function updateUI(data) {
     //    - Register 40003 (target temperature) is IGNORED in this mode!
     //    - Display: Auto offset adjustment (±5K)
     //
-    const opMode = data.op_mode; // Register 40001: 3=Auto, 4=Heating
+    const deviceOpMode = data.op_mode; // Register 40001: 3=Auto, 4=Heating
     const manualSection = document.getElementById('manual-setpoint-section');
     const lgAutoSection = document.getElementById('lg-auto-offset-section');
 
-    // Update LG mode toggle to match current mode
-    updateLGModeUI(opMode);
+    // If we have a pending mode, check if device has caught up
+    if (pendingOpMode !== null) {
+        if (deviceOpMode === pendingOpMode) {
+            // Device has caught up to our requested mode
+            console.log(`Device mode caught up to pending mode: ${pendingOpMode === 3 ? 'Auto' : 'Heating'}`);
+            pendingOpMode = null;
+        } else {
+            // Still waiting for device to catch up - keep showing pending mode
+            console.log(`Waiting for device mode to catch up (pending: ${pendingOpMode}, device: ${deviceOpMode})`);
+        }
+    }
 
-    if (opMode === 3) {
+    // Use pending mode if set, otherwise use device mode
+    const displayOpMode = pendingOpMode !== null ? pendingOpMode : deviceOpMode;
+
+    // Update LG mode toggle to match display mode (prevents flip-back during API call)
+    updateLGModeUI(displayOpMode);
+
+    if (displayOpMode === 3) {
         // LG Auto mode - hide manual slider (register 40003 unused), show offset (register 40005 active)
         if (manualSection) manualSection.style.display = 'none';
         if (lgAutoSection) lgAutoSection.style.display = 'block';
@@ -308,7 +324,7 @@ function updateUI(data) {
         // Heating mode (manual) - show manual slider (register 40003 active), hide offset (register 40005 unused)
         if (manualSection) manualSection.style.display = 'block';
         if (lgAutoSection) lgAutoSection.style.display = 'none';
-        console.log('Manual Heating mode active (mode=' + opMode + '), using target temperature from register 40003');
+        console.log('Manual Heating mode active (mode=' + displayOpMode + '), using target temperature from register 40003');
     }
 
     // Flow temperature - update badge display only if value changed
@@ -471,6 +487,13 @@ function setAutoModeOffset(offset) {
  */
 async function setLGMode(mode) {
     try {
+        // Mark mode as pending to prevent polling from overwriting it
+        pendingOpMode = mode;
+        console.log(`Setting LG mode to ${mode === 3 ? 'Auto' : 'Heating'} (marked as pending)`);
+
+        // Update UI state immediately (optimistic update)
+        updateLGModeUI(mode);
+
         const result = await apiRequest(`${CONFIG.HEATPUMP_API_URL}/lg-mode`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -479,9 +502,6 @@ async function setLGMode(mode) {
 
         console.log('LG mode set:', result);
 
-        // Update UI state immediately (no waiting for poll)
-        updateLGModeUI(mode);
-
         // If switching to Heating mode and API returned default temperature, update slider
         if (mode === 4 && result.default_temperature) {
             elements.tempSlider.value = result.default_temperature;
@@ -489,13 +509,16 @@ async function setLGMode(mode) {
             console.log(`Slider updated to default temperature: ${result.default_temperature}°C`);
         }
 
-        // Refresh status after a short delay to confirm
+        // Refresh status after a short delay to check if device caught up
         setTimeout(updateStatus, 500);
     } catch (error) {
         console.error('Failed to set LG mode:', error);
         alert('Failed to set LG mode');
-        // Revert switch state on error
-        elements.lgModeSwitch.checked = (mode === 4 ? true : false);
+        // Clear pending state and revert switch on error
+        pendingOpMode = null;
+        elements.lgModeSwitch.checked = (mode === 3);
+        // Revert UI sections
+        setTimeout(updateStatus, 100);
     }
 }
 
