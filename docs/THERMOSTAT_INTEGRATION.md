@@ -2,7 +2,7 @@
 
 ## Overview
 
-The thermostat integration connects the heat pump control system with an external thermostat service (`shelly_bt_temp` project) to control room temperature. The thermostat manages the circulation pump based on indoor temperature readings, creating a complete heating control system.
+The thermostat integration connects the heat pump control system with an external thermostat service (**[shelly-blu-ht](https://github.com/stephan-aichholzer/shelly-blu-ht)** project) to control room temperature. The thermostat manages the circulation pump based on indoor temperature readings, creating a complete heating control system.
 
 **Key Concept**: Heat pump heats water → Thermostat controls circulation pump → Room temperature regulated
 
@@ -11,7 +11,7 @@ The thermostat integration connects the heat pump control system with an externa
 ```
 ┌──────────────────────┐      ┌──────────────────────┐
 │  Heat Pump Control   │      │  Thermostat Service  │
-│  (lg_r290_control)   │      │  (shelly_bt_temp)    │
+│  (lg_r290_control)   │      │  (shelly-blu-ht)    │
 │                      │      │                      │
 │  - Heat water        │◄────►│  - Read room temp    │
 │  - AI Mode           │ HTTP │  - Control pump      │
@@ -170,20 +170,20 @@ services:
       - THERMOSTAT_API_URL=http://iot-api:8000  # Container name
     networks:
       - heatpump-net
-      - shelly_bt_temp_default  # External network reference
+      - shelly-blu-ht_default  # External network reference
 
 networks:
-  shelly_bt_temp_default:
+  shelly-blu-ht_default:
     external: true  # Reference to thermostat network
 ```
 
-**shelly_bt_temp/docker-compose.yml:**
+**shelly-blu-ht/docker-compose.yml:**
 ```yaml
 services:
   api:
     container_name: iot-api
     networks:
-      - default  # Creates shelly_bt_temp_default network
+      - default  # Creates shelly-blu-ht_default network
 ```
 
 ### Access Patterns
@@ -194,7 +194,7 @@ services:
 
 **Container → Thermostat:**
 - Docker DNS: `http://iot-api:8000`
-- Via `shelly_bt_temp_default` network
+- Via `shelly-blu-ht_default` network
 
 ## Configuration
 
@@ -308,8 +308,8 @@ Outdoor: 5°C, Thermostat Mode: AUTO
 
 **Check network:**
 ```bash
-docker network ls | grep shelly_bt_temp_default
-docker network inspect shelly_bt_temp_default
+docker network ls | grep shelly-blu-ht_default
+docker network inspect shelly-blu-ht_default
 ```
 
 **Test connection:**
@@ -317,7 +317,7 @@ docker network inspect shelly_bt_temp_default
 docker exec lg_r290_service curl http://iot-api:8000/api/v1/thermostat/status
 ```
 
-**Solution**: Verify `shelly_bt_temp_default` network exists and is external in docker-compose.yml.
+**Solution**: Verify `shelly-blu-ht_default` network exists and is external in docker-compose.yml.
 
 ### Auto Mode Offset Not Applying
 

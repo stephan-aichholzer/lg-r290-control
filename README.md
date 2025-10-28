@@ -35,7 +35,7 @@ A Docker-based software stack for interfacing with an LG R290 7kW heat pump via 
 - **Cross-Origin Support**: CORS-enabled for multi-service integration
 
 ### Thermostat Integration
-External integration with **shelly_bt_temp** project (separate repository) via API:
+External integration with **[shelly-blu-ht](https://github.com/stephan-aichholzer/shelly-blu-ht)** project (separate repository) via API:
 - Reads thermostat mode via API (ECO/AUTO/ON/OFF)
 - Automatically adjusts LG offset based on thermostat mode
 - Backend-only integration (no thermostat GUI in this project)
@@ -227,7 +227,7 @@ docker-compose up -d
 
 ### Thermostat Integration
 
-This project integrates with the **shelly_bt_temp** project (separate repository) via API:
+This project integrates with the **[shelly-blu-ht](https://github.com/stephan-aichholzer/shelly-blu-ht)** project (separate repository) via API:
 
 **What this project does**:
 - Reads thermostat mode from external API
@@ -246,7 +246,7 @@ THERMOSTAT_API_URL=http://iot-api:8000  # Docker container name
 - ON mode → +2K offset (comfort)
 - OFF mode → -5K offset (minimal heating)
 
-**Note**: The thermostat UI and control is handled by the shelly_bt_temp project, not this one.
+**Note**: The thermostat UI and control is handled by the [shelly-blu-ht](https://github.com/stephan-aichholzer/shelly-blu-ht) project, not this one.
 
 For detailed setup instructions, see [docs/THERMOSTAT_INTEGRATION.md](docs/THERMOSTAT_INTEGRATION.md).
 
