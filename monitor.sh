@@ -160,6 +160,8 @@ show_temperatures() {
             local return_temp=$(echo "$response" | jq -r '.return_temperature // 0')
             local outdoor=$(echo "$response" | jq -r '.outdoor_temperature // 0')
             local target=$(echo "$response" | jq -r '.target_temperature // 0')
+            local flow_rate=$(echo "$response" | jq -r '.flow_rate // 0')
+            local water_pressure=$(echo "$response" | jq -r '.water_pressure // 0')
             local power=$(echo "$response" | jq -r '.is_on // false')
             local mode=$(echo "$response" | jq -r '.operating_mode // "Unknown"')
             local mode_setting=$(echo "$response" | jq -r '.mode_setting // "Unknown"')
@@ -183,6 +185,9 @@ show_temperatures() {
             echo -e "  ${BOLD}Flow Temp:${NC}     ${RED}${flow}°C${NC} (water outlet)"
             echo -e "  ${BOLD}Return Temp:${NC}   ${BLUE}${return_temp}°C${NC} (water inlet)"
             echo -e "  ${BOLD}Outdoor Temp:${NC}  ${CYAN}${outdoor}°C${NC}"
+            echo ""
+            echo -e "  ${BOLD}Flow Rate:${NC}     ${MAGENTA}${flow_rate} LPM${NC}"
+            echo -e "  ${BOLD}Water Pressure:${NC} ${MAGENTA}${water_pressure} bar${NC}"
 
             # Calculate delta
             local delta=$(echo "$flow - $return_temp" | bc 2>/dev/null || echo "N/A")

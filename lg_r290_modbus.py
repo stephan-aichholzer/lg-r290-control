@@ -64,7 +64,9 @@ INPUT_ERROR_CODE = 0         # 30001: Error Code
 INPUT_OPERATING_MODE = 1     # 30002: ODU Operating Cycle
 INPUT_RETURN_TEMP = 2        # 30003: Water Inlet Temperature (return)
 INPUT_FLOW_TEMP = 3          # 30004: Water Outlet Temperature (flow)
+INPUT_FLOW_RATE = 8          # 30009: Current Flow Rate (0.1 LPM)
 INPUT_OUTDOOR_TEMP = 12      # 30013: Outdoor Air Temperature
+INPUT_WATER_PRESSURE = 13    # 30014: Water Pressure (0.1 bar)
 
 # ============================================================================
 # Helper Functions
@@ -92,6 +94,26 @@ def decode_signed_int(value: int) -> int:
     if value > 32767:
         value = value - 65536
     return value
+
+
+def decode_flow_rate(value: int) -> float:
+    """
+    Decode flow rate value from Modbus register.
+
+    LG uses unsigned 16-bit integers with 0.1 LPM resolution.
+    Example: 278 = 27.8 LPM
+    """
+    return value / 10.0
+
+
+def decode_pressure(value: int) -> float:
+    """
+    Decode pressure value from Modbus register.
+
+    LG uses unsigned 16-bit integers with 0.1 bar resolution.
+    Example: 19 = 1.9 bar
+    """
+    return value / 10.0
 
 
 # ============================================================================
@@ -215,12 +237,12 @@ async def read_all_registers(client: AsyncModbusTcpClient) -> Optional[Dict[str,
         Dictionary with all status data, or None on failure
     """
     try:
-        # Read input registers (30001-30013) - we need registers 0-12
+        # Read input registers (30001-30014) - we need registers 0-13
         await asyncio.sleep(INTER_REQUEST_DELAY)
         input_result = await modbus_operation_with_retry(
             client,
             client.read_input_registers,
-            0, 13,  # Changed from 14 to 13 to get registers 0-12
+            0, 14,  # Read 14 registers (0-13) to include flow rate and pressure
             operation_name="read input registers",
             slave=DEVICE_ID
         )
@@ -267,7 +289,9 @@ async def read_all_registers(client: AsyncModbusTcpClient) -> Optional[Dict[str,
             'operating_mode': input_regs[INPUT_OPERATING_MODE],
             'flow_temp': decode_temperature(input_regs[INPUT_FLOW_TEMP]),
             'return_temp': decode_temperature(input_regs[INPUT_RETURN_TEMP]),
+            'flow_rate': decode_flow_rate(input_regs[INPUT_FLOW_RATE]),
             'outdoor_temp': decode_temperature(input_regs[INPUT_OUTDOOR_TEMP]),
+            'water_pressure': decode_pressure(input_regs[INPUT_WATER_PRESSURE]),
             'op_mode': holding_regs[HOLDING_OP_MODE],
             'control_method': holding_regs[HOLDING_CONTROL_METHOD],
             'target_temp': decode_temperature(holding_regs[HOLDING_TARGET_TEMP]),

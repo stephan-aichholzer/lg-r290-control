@@ -24,6 +24,7 @@ sys.path.insert(0, '/app')
 from lg_r290_modbus import connect_gateway, set_power, set_target_temperature, set_auto_mode_offset, set_lg_mode
 
 from scheduler import Scheduler
+from power_manager import PowerManager
 import schedule_api
 import heatpump_api
 
@@ -40,8 +41,9 @@ STATUS_FILE = Path("/app/status.json")
 # Global Modbus client for write operations
 modbus_client = None
 
-# Global scheduler instance
+# Global instances
 scheduler: Optional[Scheduler] = None
+power_manager: Optional[PowerManager] = None
 
 # Feature flags - set to False to disable features
 ENABLE_SCHEDULER = True  # Set to False to disable scheduler
@@ -238,6 +240,11 @@ async def lifespan(app: FastAPI):
     # Sync LG Auto offset with current thermostat mode on startup
     logger.info("Syncing LG Auto offset with thermostat mode...")
     asyncio.create_task(sync_lg_offset_on_startup(thermostat_api_url))
+
+    # Initialize power manager
+    global power_manager
+    power_manager = PowerManager(modbus_client, thermostat_api_url)
+    asyncio.create_task(power_manager.run())
 
     yield
 
@@ -442,9 +449,9 @@ async def get_status():
             "auto_mode_offset": data.get('auto_mode_offset', 0),
             "flow_temperature": data['flow_temp'],
             "return_temperature": data['return_temp'],
-            "flow_rate": 0.0,  # Not available in current register set
+            "flow_rate": data.get('flow_rate', 0.0),
             "outdoor_temperature": data['outdoor_temp'],
-            "water_pressure": 0.0,  # Not available in current register set
+            "water_pressure": data.get('water_pressure', 0.0),
             "error_code": data['error_code'],
             "has_error": data['error_code'] != 0
         }

@@ -112,12 +112,20 @@ def format_status_line(status: dict) -> str:
         flow_str = "  N/A°C"
         return_str = "  N/A°C"
 
+    # Flow rate - handle missing value
+    flow_rate = status.get('flow_rate')
+    if flow_rate is not None:
+        flow_rate_str = f"{flow_rate:4.1f}L"
+    else:
+        flow_rate_str = " N/A"
+
     return (
         f"[{status['power_state']:3s}] {cycle_str:8s}({user_mode:4s}{offset_str:4s}) | "
         f"Target: {status.get('target_temp', 0):4.1f}°C | "
         f"Flow: {flow_str} | "
         f"Return: {return_str} | "
         f"Delta: {delta_str} | "
+        f"Rate: {flow_rate_str} | "
         f"ODU: {status.get('outdoor_temp', 0):5.1f}°C | "
         f"Error: {status.get('error_code', 0)}"
     )

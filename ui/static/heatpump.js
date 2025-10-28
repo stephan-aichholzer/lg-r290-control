@@ -7,6 +7,7 @@ let updateTimer = null;
 let userInteractingWithSlider = false;
 let pendingSliderValue = null;  // Track the temperature value we're setting
 let pendingOffsetValue = null;  // Track the offset value we're setting
+let pendingPowerState = null;   // Track the power state we're setting
 
 // UI Elements
 const elements = {
@@ -148,18 +149,39 @@ function updateConnectionStatusBadge(connected) {
 function updateUI(data) {
     console.log('updateUI called, userInteracting:', userInteractingWithSlider, 'target_temp:', data.target_temperature);
 
-    // Power status - only update if changed to prevent flickering
-    if (elements.powerSwitch.checked !== data.is_on) {
-        elements.powerSwitch.checked = data.is_on;
+    // Power status - use pending value pattern to prevent flip-back during API calls
+    const devicePowerState = data.is_on;
+
+    // If we have a pending power state, check if device has caught up
+    if (pendingPowerState !== null) {
+        if (devicePowerState === pendingPowerState) {
+            // Device has caught up to our requested state
+            console.log(`Device power caught up to pending state: ${pendingPowerState ? 'ON' : 'OFF'}`);
+            pendingPowerState = null;
+        } else {
+            // Still waiting for device to catch up - keep showing pending state
+            console.log(`Waiting for device power to catch up (pending: ${pendingPowerState ? 'ON' : 'OFF'}, device: ${devicePowerState ? 'ON' : 'OFF'})`);
+        }
     }
-    const newPowerText = data.is_on ? 'ON' : 'OFF';
+
+    // Use pending state if set, otherwise use device state
+    const displayPowerState = pendingPowerState !== null ? pendingPowerState : devicePowerState;
+
+    // Update switch only if different from display state (prevents unwanted flips)
+    if (elements.powerSwitch.checked !== displayPowerState) {
+        elements.powerSwitch.checked = displayPowerState;
+    }
+
+    // Update status badge
+    const newPowerText = displayPowerState ? 'ON' : 'OFF';
     if (elements.powerStatus.textContent !== newPowerText) {
         elements.powerStatus.textContent = newPowerText;
     }
-    // Toggle class only if needed
-    if (data.is_on && !elements.powerDot.classList.contains('on')) {
+
+    // Toggle dot class only if needed
+    if (displayPowerState && !elements.powerDot.classList.contains('on')) {
         elements.powerDot.classList.add('on');
-    } else if (!data.is_on && elements.powerDot.classList.contains('on')) {
+    } else if (!displayPowerState && elements.powerDot.classList.contains('on')) {
         elements.powerDot.classList.remove('on');
     }
 
@@ -325,10 +347,14 @@ async function setPower(powerOn) {
             return;
         }
 
-        // User confirmed - keep switch in new position and update badges immediately
+        // Mark power state as pending to prevent polling from overwriting it
+        pendingPowerState = powerOn;
+        console.log(`Setting power to ${powerOn ? 'ON' : 'OFF'} (marked as pending)`);
+
+        // User confirmed - update UI immediately (optimistic update)
         elements.powerSwitch.checked = powerOn;
 
-        // Optimistic UI update for status badges
+        // Update status badges immediately
         const newPowerText = powerOn ? 'ON' : 'OFF';
         elements.powerStatus.textContent = newPowerText;
         if (powerOn) {
@@ -351,12 +377,22 @@ async function setPower(powerOn) {
             await setLGMode(3); // 3 = Auto mode
         }
 
+        // Quick status update to check if device caught up
         setTimeout(updateStatus, 500);
     } catch (error) {
         console.error('Failed to set power:', error);
         alert('Failed to set power state');
-        // Revert switch on error
+        // Clear pending state and revert switch on error
+        pendingPowerState = null;
         elements.powerSwitch.checked = !powerOn;
+        // Restore badge state
+        const revertPowerText = !powerOn ? 'ON' : 'OFF';
+        elements.powerStatus.textContent = revertPowerText;
+        if (!powerOn) {
+            elements.powerDot.classList.add('on');
+        } else {
+            elements.powerDot.classList.remove('on');
+        }
     }
 }
 

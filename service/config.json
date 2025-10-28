@@ -4,7 +4,7 @@
     "enabled": true,
     "thermostat_mode_mappings": {
       "ECO": -2,
-      "AUTO": 2,
+      "AUTO": 1,
       "ON": 2,
       "OFF": -5
     },
@@ -19,5 +19,17 @@
     "default_flow_temperature": 40.0,
     "min_temperature": 33.0,
     "max_temperature": 50.0
+  },
+  "power_management": {
+    "enabled": false,
+    "turn_off_when": {
+      "outdoor_temp_above_or_equal": 15.0,
+      "room_temp_above_or_equal": 21.1
+    },
+    "turn_on_when": {
+      "outdoor_temp_below": 14.0,
+      "room_temp_below": 21.0
+    },
+    "check_interval_seconds": 300
   }
 }
