@@ -26,9 +26,10 @@ echo ""
 
 # Start monitor_and_keep_alive.py in background
 echo "[2/3] Starting monitor daemon (keep-alive + status caching)..."
-python3 /app/monitor_and_keep_alive.py > /app/monitor.log 2>&1 &
+python3 /app/monitor_and_keep_alive.py &
 MONITOR_PID=$!
 echo "✅ Monitor daemon started (PID: $MONITOR_PID)"
+echo "   Logs: /app/monitor.log (clean data) and /app/error.log (errors)"
 echo ""
 
 # Wait for status.json to be updated by monitor daemon

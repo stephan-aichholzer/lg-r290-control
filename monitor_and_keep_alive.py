@@ -48,13 +48,36 @@ ODU_MODES = {
 # Logging Configuration
 # ============================================================================
 
+from logging.handlers import RotatingFileHandler
+
+# Suppress noisy pymodbus and asyncio errors from our logs
+logging.getLogger('pymodbus').setLevel(logging.CRITICAL)
+logging.getLogger('asyncio').setLevel(logging.CRITICAL)
+
+# Main logger - clean monitoring data only
+monitor_handler = RotatingFileHandler(
+    '/app/monitor.log',
+    maxBytes=1_000_000,  # 1MB ≈ 30 hours of logs
+    backupCount=0        # No backup files, just truncate when full
+)
+monitor_handler.setLevel(logging.INFO)
+monitor_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+
+# Error logger - exceptions and warnings
+error_handler = RotatingFileHandler(
+    '/app/error.log',
+    maxBytes=1_000_000,  # 1MB
+    backupCount=0        # No backup files
+)
+error_handler.setLevel(logging.WARNING)
+error_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+
+# Configure root logger
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(sys.stdout)  # Log to stdout for Docker logs
-    ]
+    handlers=[monitor_handler, error_handler]
 )
+
 logger = logging.getLogger(__name__)
 
 # ============================================================================
