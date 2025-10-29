@@ -65,6 +65,10 @@ heatpump_water_pump_running = Gauge('heatpump_water_pump_running', 'Water pump r
 heatpump_operating_mode = Gauge('heatpump_operating_mode', 'Operating mode (0=Standby, 1=Cooling, 2=Heating, 3=Auto)')
 heatpump_error_code = Gauge('heatpump_error_code', 'Error code (0=no error)')
 
+# Flow metrics
+heatpump_flow_rate = Gauge('heatpump_flow_rate_lpm', 'Water flow rate in liters per minute')
+heatpump_water_pressure = Gauge('heatpump_water_pressure_bar', 'Water system pressure in bar')
+
 # Calculated metrics
 heatpump_temp_delta = Gauge('heatpump_temperature_delta_celsius', 'Temperature delta (flow - return)')
 
@@ -97,6 +101,15 @@ async def update_prometheus_metrics():
                 # Calculate delta if both temps available
                 if flow is not None and ret is not None:
                     heatpump_temp_delta.set(flow - ret)
+
+                # Flow metrics
+                flow_rate = data.get('flow_rate')
+                pressure = data.get('water_pressure')
+
+                if flow_rate is not None:
+                    heatpump_flow_rate.set(flow_rate)
+                if pressure is not None:
+                    heatpump_water_pressure.set(pressure)
 
                 # Status metrics
                 heatpump_power_state.set(1 if data.get('power_state') == 'ON' else 0)
