@@ -54,16 +54,22 @@ from logging.handlers import RotatingFileHandler
 logging.getLogger('pymodbus').setLevel(logging.CRITICAL)
 logging.getLogger('asyncio').setLevel(logging.CRITICAL)
 
-# Main logger - clean monitoring data only
+# Custom filter to only allow INFO level (exclude WARNING, ERROR, CRITICAL)
+class InfoOnlyFilter(logging.Filter):
+    def filter(self, record):
+        return record.levelno == logging.INFO
+
+# Main logger - clean monitoring data only (INFO level only)
 monitor_handler = RotatingFileHandler(
     '/app/monitor.log',
     maxBytes=1_000_000,  # 1MB ≈ 30 hours of logs
     backupCount=0        # No backup files, just truncate when full
 )
 monitor_handler.setLevel(logging.INFO)
+monitor_handler.addFilter(InfoOnlyFilter())  # Only INFO, not WARNING/ERROR
 monitor_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
 
-# Error logger - exceptions and warnings
+# Error logger - exceptions and warnings only
 error_handler = RotatingFileHandler(
     '/app/error.log',
     maxBytes=1_000_000,  # 1MB
