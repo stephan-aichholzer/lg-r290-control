@@ -19,6 +19,7 @@ class PowerManager:
         self.modbus_client = modbus_client
         self.thermostat_api_url = thermostat_api_url
         self.enabled = False
+        self.sensor_sources = {}
         self.turn_off_when = {}
         self.turn_on_when = {}
         self.check_interval = 300
@@ -33,14 +34,57 @@ class PowerManager:
                 config = json.load(f).get('power_management', {})
 
             self.enabled = config.get('enabled', False)
+            self.sensor_sources = config.get('sensor_sources', {
+                'outdoor_temp': 'temp_odu',  # Default to heat pump ODU sensor
+                'room_temp': 'temp_indoor'   # Default to Shelly indoor
+            })
             self.turn_off_when = config.get('turn_off_when', {})
             self.turn_on_when = config.get('turn_on_when', {})
             self.check_interval = config.get('check_interval_seconds', 300)
 
-            logger.info(f"Power manager: enabled={self.enabled}")
+            logger.info(f"Power manager: enabled={self.enabled}, sensors={self.sensor_sources}")
         except Exception as e:
             logger.error(f"Failed to load power manager config: {e}")
             self.enabled = False
+
+    async def _get_temperature(self, sensor_source: str) -> float:
+        """
+        Get temperature from configured sensor source.
+
+        Sensor sources:
+        - temp_indoor: Shelly BLU indoor sensor (via thermostat API)
+        - temp_outdoor: Shelly BLU outdoor sensor (via thermostat API)
+        - temp_buffer: Shelly BLU buffer tank sensor (via thermostat API)
+        - temp_odu: Heat pump outdoor unit sensor (via Modbus/status.json)
+
+        Args:
+            sensor_source: Sensor identifier (temp_indoor, temp_outdoor, temp_buffer, temp_odu)
+
+        Returns:
+            Temperature in °C, or None if sensor not available
+        """
+        try:
+            # Heat pump ODU sensor from Modbus (status.json)
+            if sensor_source == 'temp_odu':
+                with open("/app/status.json") as f:
+                    status = json.load(f)
+                    return status.get('outdoor_temp')
+
+            # Shelly BLU sensors from thermostat API
+            elif sensor_source in ['temp_indoor', 'temp_outdoor', 'temp_buffer']:
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    resp = await client.get(f"{self.thermostat_api_url}/api/v1/thermostat/status")
+                    resp.raise_for_status()
+                    all_temps = resp.json().get('all_temps', {})
+                    return all_temps.get(sensor_source)
+
+            else:
+                logger.error(f"Unknown sensor source: {sensor_source}")
+                return None
+
+        except Exception as e:
+            logger.error(f"Error reading temperature from {sensor_source}: {e}")
+            return None
 
     async def _set_thermostat_mode(self, mode: str):
         """
@@ -90,18 +134,20 @@ class PowerManager:
             return
 
         try:
-            # Get outdoor temp from status.json
+            # Get heat pump power state
             with open("/app/status.json") as f:
                 status = json.load(f)
-                outdoor_temp = status.get('outdoor_temp')
                 is_on = status.get('power_state') == 'ON'
 
-            # Get room temp from thermostat
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                resp = await client.get(f"{self.thermostat_api_url}/api/v1/thermostat/status")
-                room_temp = resp.json().get('current_temp')
+            # Get temperatures from configured sensor sources
+            outdoor_source = self.sensor_sources.get('outdoor_temp', 'temp_odu')
+            room_source = self.sensor_sources.get('room_temp', 'temp_indoor')
+
+            outdoor_temp = await self._get_temperature(outdoor_source)
+            room_temp = await self._get_temperature(room_source)
 
             if outdoor_temp is None or room_temp is None:
+                logger.warning(f"Missing temperature data: outdoor={outdoor_temp} ({outdoor_source}), room={room_temp} ({room_source})")
                 return
 
             # Turn OFF logic
@@ -110,7 +156,7 @@ class PowerManager:
                 room_ok = room_temp >= self.turn_off_when.get('room_temp_above_or_equal', 999)
 
                 if outdoor_ok and room_ok:
-                    logger.info(f"💡 Turning OFF: outdoor={outdoor_temp:.1f}°C, room={room_temp:.1f}°C")
+                    logger.info(f"💡 Turning OFF: outdoor={outdoor_temp:.1f}°C ({outdoor_source}), room={room_temp:.1f}°C ({room_source})")
 
                     # Step 1: Set thermostat mode to OFF (stops circulation pump)
                     await self._set_thermostat_mode("OFF")
@@ -125,7 +171,7 @@ class PowerManager:
                 room_ok = room_temp < self.turn_on_when.get('room_temp_below', -999)
 
                 if outdoor_ok and room_ok:
-                    logger.info(f"💡 Turning ON: outdoor={outdoor_temp:.1f}°C, room={room_temp:.1f}°C")
+                    logger.info(f"💡 Turning ON: outdoor={outdoor_temp:.1f}°C ({outdoor_source}), room={room_temp:.1f}°C ({room_source})")
 
                     # Step 1: Turn on heat pump power
                     from lg_r290_modbus import set_power

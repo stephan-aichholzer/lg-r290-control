@@ -21,15 +21,23 @@
     "max_temperature": 50.0
   },
   "power_management": {
-    "enabled": false,
+    "description": "Automatic heat pump power control based on temperature thresholds",
+    "enabled": true,
+    "sensor_sources": {
+      "outdoor_temp": "temp_outdoor",
+      "room_temp": "temp_indoor"
+    },
     "turn_off_when": {
       "outdoor_temp_above_or_equal": 15.0,
-      "room_temp_above_or_equal": 21.1
+      "room_temp_above_or_equal": 21.5
     },
     "turn_on_when": {
       "outdoor_temp_below": 14.0,
-      "room_temp_below": 21.0
+      "room_temp_below": 21.5
     },
-    "check_interval_seconds": 300
+    "check_interval_seconds": 300,
+    "_sensor_options": {
+      "_comment": "Available sensor sources: temp_indoor, temp_outdoor, temp_buffer (all from Shelly BLU via thermostat API), temp_odu (from heat pump Modbus register 30013)"
+    }
   }
 }
