@@ -1,0 +1,178 @@
+@startuml Power Management - Automatic Temperature-Based Control
+title Power Management - Automatic Heat Pump Control
+
+participant "Power Manager\n(background task)" as PM
+participant "config.json" as Config
+participant "status.json" as Status
+participant "Thermostat API\n(iot-api:8000)" as Thermostat
+participant "modbus_client" as Modbus
+participant "Heat Pump\n(Modbus TCP)" as HeatPump
+
+== Initialization (Service Startup) ==
+PM -> Config: Load power_management config
+Config --> PM: {\n  enabled: true,\n  sensor_sources: {\n    outdoor_temp: "temp_outdoor",\n    room_temp: "temp_indoor"\n  },\n  turn_off_when: {\n    outdoor_temp_above_or_equal: 15.0,\n    room_temp_above_or_equal: 21.5\n  },\n  turn_on_when: {\n    outdoor_temp_below: 14.0,\n    room_temp_below: 21.5\n  },\n  check_interval_seconds: 300\n}
+
+PM -> PM: Start background task\n(5 minute interval)
+
+note right of PM
+  **Available Sensor Sources:**
+  • temp_indoor → Shelly BLU indoor
+  • temp_outdoor → Shelly BLU outdoor
+  • temp_buffer → Shelly BLU buffer tank
+  • temp_odu → Heat pump ODU sensor
+
+  Current config uses:
+  • outdoor_temp from temp_outdoor (Shelly)
+  • room_temp from temp_indoor (Shelly)
+end note
+
+== Background Task - Every 5 Minutes ==
+loop Every 5 minutes (configurable)
+
+    PM -> Status: Read status.json
+    Status --> PM: {power_state: "ON", ...}
+
+    PM -> PM: Heat pump is currently ON
+
+    PM -> Thermostat: GET /api/v1/thermostat/status
+    activate Thermostat
+    Thermostat --> PM: 200 OK\n{\n  all_temps: {\n    temp_indoor: 21.7,\n    temp_outdoor: 12.1,\n    temp_buffer: 33.4\n  }\n}
+    deactivate Thermostat
+
+    PM -> PM: Extract configured sensors:\ntemp_outdoor (Shelly) = 12.1°C\ntemp_indoor (Shelly) = 21.7°C
+
+    PM -> Status: Read status.json (for temp_odu if needed)
+    Status --> PM: {outdoor_temp: 13.6}
+    note right of PM
+      Heat pump ODU sensor reads 13.6°C
+      (1.5°C warmer due to residual heat)
+
+      Configured to use Shelly outdoor
+      sensor (12.1°C) for more accurate
+      ambient temperature reading
+    end note
+
+    == Turn OFF Decision Logic ==
+    alt Evaluate Turn OFF Conditions (Heat Pump is ON)
+        PM -> PM: Check turn_off_when conditions:\n• outdoor_temp ≥ 15.0°C?\n  12.1°C < 15.0°C → NO\n• room_temp ≥ 21.5°C?\n  21.7°C ≥ 21.5°C → YES
+
+        PM -> PM: Both conditions NOT met\nSkip turn OFF
+
+        note right of PM
+          **Turn OFF requires BOTH:**
+          ✓ outdoor_temp ≥ 15.0°C
+          ✓ room_temp ≥ 21.5°C
+
+          Current status: BOTH not met
+          → Keep heat pump ON
+        end note
+    end
+
+    == Alternative: Turn OFF Scenario ==
+    alt Example: Spring Day (Both Conditions Met)
+        PM -> PM: Check conditions:\n• outdoor_temp = 15.2°C ≥ 15.0°C ✓\n• room_temp = 22.1°C ≥ 21.5°C ✓
+
+        PM -> PM: BOTH conditions met\n→ Turn OFF heat pump
+
+        note right of PM
+          Log: "💡 Turning OFF:
+          outdoor=15.2°C (temp_outdoor),
+          room=22.1°C (temp_indoor)"
+        end note
+
+        PM -> Thermostat: POST /api/v1/thermostat/config\n{"mode": "OFF"}
+        activate Thermostat
+        note right of PM
+          Step 1: Set thermostat to OFF
+          This stops the circulation pump
+        end note
+        Thermostat --> PM: 200 OK
+        deactivate Thermostat
+
+        PM -> Modbus: set_power(False)
+        Modbus -> HeatPump: Write Coil 00001 (False)
+        HeatPump --> Modbus: Success
+        note right of PM
+          Step 2: Turn OFF heat pump power
+        end note
+        Modbus --> PM: True
+
+        PM -> PM: Log: "Heat pump turned OFF\ndue to temperature thresholds"
+    end
+
+    == Turn ON Decision Logic ==
+    alt Evaluate Turn ON Conditions (Heat Pump is OFF)
+        PM -> Status: Read status.json
+        Status --> PM: {power_state: "OFF"}
+
+        PM -> Thermostat: GET /api/v1/thermostat/status
+        Thermostat --> PM: {\n  all_temps: {\n    temp_indoor: 20.8,\n    temp_outdoor: 13.2\n  }\n}
+
+        PM -> PM: Check turn_on_when conditions:\n• outdoor_temp < 14.0°C?\n  13.2°C < 14.0°C → YES\n• room_temp < 21.5°C?\n  20.8°C < 21.5°C → YES
+
+        PM -> PM: BOTH conditions met\n→ Turn ON heat pump
+
+        note right of PM
+          Log: "💡 Turning ON:
+          outdoor=13.2°C (temp_outdoor),
+          room=20.8°C (temp_indoor)"
+        end note
+
+        PM -> Modbus: set_power(True)
+        Modbus -> HeatPump: Write Coil 00001 (True)
+        HeatPump --> Modbus: Success
+        note right of PM
+          Step 1: Turn ON heat pump power
+        end note
+        Modbus --> PM: True
+
+        PM -> Thermostat: POST /api/v1/thermostat/config\n{"mode": "AUTO"}
+        activate Thermostat
+        note right of PM
+          Step 2: Set thermostat to AUTO
+          This enables automatic pump control
+        end note
+        Thermostat --> PM: 200 OK
+        deactivate Thermostat
+
+        PM -> PM: Log: "Heat pump turned ON\ndue to temperature thresholds"
+    end
+
+    PM -> PM: await asyncio.sleep(300)
+    note right of PM
+      Wait 5 minutes before
+      next check cycle
+    end note
+end
+
+== Error Handling ==
+alt Sensor Read Error
+    PM -> Thermostat: GET /api/v1/thermostat/status
+    Thermostat --> PM: Timeout / Connection error
+    PM -> PM: Log WARNING:\n"Missing temperature data"
+    PM -> PM: Skip this cycle\n(don't make power decisions\nwithout sensor data)
+end
+
+note over PM, HeatPump
+  **Hysteresis Behavior:**
+
+  Turn OFF at: outdoor ≥ 15.0°C AND room ≥ 21.5°C
+  Turn ON at:  outdoor < 14.0°C AND room < 21.5°C
+
+  Gap: 1.0°C outdoor hysteresis
+  → Prevents rapid ON/OFF cycling
+
+  **Mode Synchronization:**
+
+  When turning OFF:
+    1. Set thermostat mode → OFF
+    2. Turn heat pump → OFF
+    → Prevents circulation pump waste
+
+  When turning ON:
+    1. Turn heat pump → ON
+    2. Set thermostat mode → AUTO
+    → Enables automatic pump control
+end note
+
+@enduml

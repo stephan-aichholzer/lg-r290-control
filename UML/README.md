@@ -4,19 +4,29 @@ This folder contains PlantUML sequence diagrams documenting all major use cases 
 
 ## Diagram Overview
 
+### Architecture Diagrams (C4 Model)
+| Diagram | Description | Type |
+|---------|-------------|------|
+| **00_context_diagram.puml** | System boundaries and external integrations | C4 Context |
+| **00_component_diagram.puml** | Internal component architecture and data flows | C4 Component |
+
+### Sequence Diagrams (Operational Flows)
 | Diagram | Description | Key Actors |
 |---------|-------------|------------|
 | **01_manual_control.puml** | Manual temperature setpoint adjustment (Heating mode) | User, UI, API, Modbus, Heat Pump |
-| **02_ai_mode_control.puml** | ⚠️ OBSOLETE - AI Mode removed in v1.0 | N/A |
 | **03_power_control.puml** | Heat pump power ON/OFF control | User, UI, API, Modbus |
 | **04_startup_initialization.puml** | Docker Compose stack startup sequence | Docker, All Services |
 | **05_thermostat_integration.puml** | Thermostat integration and cross-stack communication | UI, API, Thermostat, Sensor |
-| **06_config_reload.puml** | ⚠️ OBSOLETE - Config reload removed with AI Mode | N/A |
+| **06_config_reload.puml** | Configuration hot-reload for schedule.json | Scheduler, Config |
 | **07_error_handling.puml** | Error scenarios and recovery strategies | Monitor Daemon, All Services |
-| **08_network_architecture.puml** | Docker network topology and communication paths | All Services, Networks |
+| **08_network_architecture.puml** | Docker network topology and communication paths (production) | All Services, Networks |
 | **09_scheduler_control.puml** | Time-based automatic temperature scheduling | Scheduler, Thermostat API, schedule.json |
 | **10_lg_auto_mode_offset.puml** | LG Auto mode temperature offset adjustment (±5K) | User, UI, API, Modbus, Heat Pump |
 | **11_prometheus_metrics.puml** | Prometheus metrics integration and Grafana monitoring | Monitor Daemon, Prometheus, Grafana |
+| **12_power_management.puml** | Automatic power control based on temperature thresholds | Power Manager, Thermostat API, Modbus |
+
+### PNG Exports
+All diagrams are also available as PNG images in the `png/` subfolder for easy viewing on GitHub.
 
 ## Use Cases Covered
 
@@ -32,11 +42,17 @@ This folder contains PlantUML sequence diagrams documenting all major use cases 
 - `GET /status` - Retrieve current device state
 - `POST /setpoint` - Set target temperature
 
-### 2. AI Mode Control (`02_ai_mode_control.puml`) ⚠️ OBSOLETE
-**Status**: This diagram is obsolete - AI Mode was removed in v1.0
-**Replaced by**: LG Mode Control (see diagram 10)
-- Use LG Auto mode (register 40001 = 3) instead
-- Adjust offset via register 40005 (±5K)
+### 2. System Context (`00_context_diagram.puml`)
+**Scenario**: C4 System Context diagram showing boundaries
+- External actors (User, LG R290 Heat Pump)
+- External systems (Thermostat API, Prometheus/Grafana)
+- System boundaries and integration points
+- Communication protocols (Modbus TCP, HTTP REST)
+
+**Key External Systems**:
+- **shelly-blu-ht**: External thermostat project providing sensor data
+- **Prometheus/Grafana**: Monitoring and visualization
+- **LG R290**: Heat pump via Waveshare RS485-to-Ethernet gateway
 
 ### 3. Power Control (`03_power_control.puml`)
 **Scenario**: User turns heat pump ON or OFF
@@ -51,18 +67,19 @@ This folder contains PlantUML sequence diagrams documenting all major use cases 
 
 ### 4. Startup Initialization (`04_startup_initialization.puml`)
 **Scenario**: Docker Compose brings up entire stack
-- Mock server initialization (pymodbus)
 - FastAPI service startup
-- Modbus client connection
-- Heating curve configuration loading
-- Adaptive controller initialization
-- Background tasks startup (polling, AI control loop)
+- Modbus client connection to Waveshare gateway
+- Configuration loading (config.json, schedule.json)
+- Background tasks startup (polling, scheduler, power management)
+- Prometheus metrics initialization
 - UI container startup (Nginx)
 
 **Components**:
-- heatpump-mock (Modbus TCP server)
 - heatpump-service (FastAPI)
 - heatpump-ui (Nginx static files)
+
+**External Hardware**:
+- LG R290 via Waveshare RS485-to-Ethernet gateway (192.168.2.10:8899)
 
 ### 5. Thermostat Integration (`05_thermostat_integration.puml`)
 **Scenario**: Cross-stack communication with external thermostat API
@@ -77,11 +94,18 @@ This folder contains PlantUML sequence diagrams documenting all major use cases 
 - Browser → Thermostat: Direct LAN access
 - Container → Thermostat: Via `shelly_bt_temp_default` external network
 
-### 6. Configuration Hot-Reload (`06_config_reload.puml`) ⚠️ OBSOLETE
-**Status**: This diagram is obsolete - Config hot-reload was removed with AI Mode in v1.0
-**Current approach**:
-- Schedule config can be reloaded: `POST /schedule/reload`
-- LG Mode config requires container rebuild (no hot-reload)
+### 6. Configuration Hot-Reload (`06_config_reload.puml`)
+**Scenario**: Reload schedule configuration without container restart
+- User edits schedule.json (time-based schedules)
+- POST request to /schedule/reload endpoint
+- Scheduler validates and reloads configuration
+- Changes take effect immediately
+- No container restart required
+
+**Key Endpoints**:
+- `POST /schedule/reload` - Reload schedule.json
+
+**Note**: LG Mode config (config.json) requires container rebuild for changes to take effect.
 
 ### 7. Error Handling (`07_error_handling.puml`)
 **Scenario**: Various failure modes and recovery strategies
@@ -168,6 +192,7 @@ This folder contains PlantUML sequence diagrams documenting all major use cases 
 
 **Metrics Exported**:
 - Temperature metrics (flow, return, outdoor, target, delta)
+- Flow rate and water pressure metrics
 - Status metrics (power, compressor, pump, mode, errors)
 - All metrics prefixed with `heatpump_`
 
@@ -175,6 +200,34 @@ This folder contains PlantUML sequence diagrams documenting all major use cases 
 - lg_r290_service joins modbus_default network
 - Prometheus uses Docker DNS: lg_r290_service:8000
 - No port mapping needed (internal network)
+
+### 12. Power Management (`12_power_management.puml`)
+**Scenario**: Automatic heat pump power control based on outdoor and room temperature thresholds
+- Background task checks every 5 minutes (configurable)
+- Reads temperatures from configurable sensor sources
+- Evaluates turn ON/OFF conditions with hysteresis
+- Synchronizes thermostat mode (OFF when heat pump OFF, AUTO when ON)
+- Prevents circulation pump waste
+
+**Sensor Sources (configurable)**:
+- `temp_indoor` - Shelly BLU indoor sensor
+- `temp_outdoor` - Shelly BLU outdoor sensor (default)
+- `temp_buffer` - Shelly BLU buffer tank sensor
+- `temp_odu` - Heat pump ODU sensor (Modbus)
+
+**Turn OFF Logic** (both conditions must be met):
+- outdoor_temp ≥ 15.0°C
+- room_temp ≥ 21.5°C
+
+**Turn ON Logic** (both conditions must be met):
+- outdoor_temp < 14.0°C
+- room_temp < 21.5°C
+
+**Key Features**:
+- Hysteresis prevents rapid cycling (1°C gap)
+- Flexible sensor selection via config.json
+- Mode synchronization with thermostat
+- Transparent logging with sensor names and values
 
 ## How to View Diagrams
 
@@ -205,10 +258,13 @@ plantuml UML/*.puml
 ### Option 4: Docker (No Installation)
 ```bash
 # Generate PNG using Docker
-docker run -v $(pwd)/UML:/data plantuml/plantuml:latest -tpng /data/*.puml
+docker run --rm -v $(pwd)/UML:/data plantuml/plantuml:latest -tpng -o png "/data/*.puml"
 
-# Output: PNG files in UML/ directory
+# Output: PNG files in UML/png/ directory
 ```
+
+### Option 5: Pre-generated PNG Images
+All diagrams are available as PNG images in the `png/` subfolder. These are updated whenever diagrams are modified and can be viewed directly on GitHub without any tools.
 
 ## Key Concepts Illustrated
 
@@ -250,8 +306,14 @@ docker run -v $(pwd)/UML:/data plantuml/plantuml:latest -tpng /data/*.puml
 
 ## Version
 
-**Diagrams Version**: v1.0
-**Last Updated**: 2025-10-21
-**Corresponds to**: LG Mode Control system (AI Mode removed)
+**Diagrams Version**: v1.1
+**Last Updated**: 2025-11-02
+**Corresponds to**: LG Mode Control system with Power Management and Prometheus integration
 
-**Note**: Diagrams 02 and 06 are obsolete and marked as such. They remain for historical reference but do not reflect current system behavior.
+**Recent Updates**:
+- Added C4 Context and Component diagrams (00_*)
+- Added Power Management diagram (12_*)
+- Updated Network Architecture diagram (removed mock server)
+- Removed obsolete AI Mode diagram (02_*)
+- Added PNG exports in `png/` subfolder
+- Updated to reflect production deployment configuration

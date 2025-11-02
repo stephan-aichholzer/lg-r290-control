@@ -1,0 +1,61 @@
+@startuml System Context Diagram (C4)
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Context.puml
+
+title System Context Diagram - LG R290 Heat Pump Control System
+
+Person(user, "User", "Homeowner monitoring and controlling the heating system")
+
+System(lg_system, "LG R290 Control System", "Monitors and controls LG R290 heat pump via Modbus TCP, provides web UI and automation")
+
+System_Ext(thermostat, "Shelly BLU Thermostat", "External thermostat system providing room temperature control and sensor data (temp_indoor, temp_outdoor, temp_buffer)")
+
+System_Ext(prometheus, "Prometheus & Grafana", "Time-series monitoring and visualization platform for heat pump metrics")
+
+System_Ext(heatpump, "LG R290 Heat Pump", "7kW heat pump with Modbus TCP interface via RS485-to-Ethernet gateway")
+
+Rel(user, lg_system, "Views status, controls power, adjusts temperature", "HTTPS (Web UI), REST API")
+Rel(lg_system, heatpump, "Reads sensors, controls power/mode/temperature", "Modbus TCP")
+Rel(lg_system, thermostat, "Reads thermostat mode and sensor temperatures", "HTTP REST API")
+Rel(prometheus, lg_system, "Scrapes metrics", "HTTP /metrics")
+Rel(user, prometheus, "Views dashboards", "HTTPS (Grafana)")
+
+note right of lg_system
+  **Core Features:**
+  • LG Auto Mode with offset control
+  • Manual heating mode (direct temp)
+  • Power management (auto ON/OFF)
+  • Time-based scheduling
+  • Prometheus metrics export
+  • Real-time web UI
+end note
+
+note right of thermostat
+  **Separate Project:**
+  github.com/stephan-aichholzer/shelly-blu-ht
+
+  **Provides:**
+  • Thermostat mode (ECO/AUTO/ON/OFF)
+  • Shelly BLU sensor readings:
+    - temp_indoor
+    - temp_outdoor
+    - temp_buffer
+end note
+
+note left of heatpump
+  **Communication:**
+  • Waveshare RS485-to-Ethernet gateway
+  • Modbus TCP (192.168.2.10:8899)
+  • Device ID: 7
+
+  **Control Registers:**
+  • Power ON/OFF (Coil 00001)
+  • Operating Mode (Holding 40001)
+  • Temperature/Offset (Holding 40003/40005)
+
+  **Sensor Registers:**
+  • Temperatures (Input 30001-30013)
+  • Flow rate (Input 30009)
+  • Pressure (Input 30010)
+end note
+
+@enduml

@@ -109,7 +109,8 @@ The LG R290 Heat Pump Control System is a containerized, microservices-based arc
 - `lg_r290_modbus.py`: Shared Modbus library (used by service and standalone scripts)
 - `monitor_and_keep_alive.py`: Background daemon for status polling and external control
 - `service/scheduler.py`: Time-based temperature scheduling
-- `service/config.json`: LG mode configuration (offset mappings, default temperatures)
+- `service/power_manager.py`: Automatic power management based on temperature thresholds
+- `service/config.json`: LG mode configuration (offset mappings, default temperatures, power management)
 - `service/schedule.json`: Time-based schedule configuration
 - `service/Dockerfile`: Container build configuration
 
@@ -261,6 +262,135 @@ The LG R290 Heat Pump Control System is a containerized, microservices-based arc
 - Temperature slider: Visible in Manual Heating mode (33-50°C)
 - Offset controls: Visible in LG Auto mode (-5 to +5K)
 - Instant section switching: No 30s poll wait
+
+### 5. Power Management
+
+**Purpose**: Automatic heat pump power control based on outdoor and room temperature thresholds with configurable sensor sources.
+
+**Technology**: Python 3.11, httpx (for thermostat API integration)
+
+**Key Features**:
+- Automatic power ON/OFF based on configurable temperature thresholds
+- Configurable sensor sources: Choose between Shelly BLU sensors or heat pump ODU sensor
+- Thermostat mode synchronization: Sets thermostat mode to OFF when turning heat pump OFF
+- Prevents circulation pump running when heat pump is OFF
+- Temperature-based decision logic with hysteresis (separate ON/OFF thresholds)
+- Configurable check interval (default: 5 minutes)
+- Four sensor options: temp_indoor, temp_outdoor, temp_buffer, temp_odu
+
+**Architecture**:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                 Power Management Flow                       │
+│                                                             │
+│  Service Startup:                                           │
+│    1. Load config.json (thresholds, sensors) ──────────┐   │
+│    2. Start background task (5 min interval)           │   │
+│                                                         │   │
+│  Every 5 Minutes:                                       │   │
+│    1. Get current heat pump power state ────► status.json  │
+│    2. Read outdoor temp from configured sensor:         │   │
+│       - temp_outdoor → Shelly BLU (via thermostat API)  │   │
+│       - temp_odu → Heat pump ODU (via Modbus/status)    │   │
+│    3. Read room temp from configured sensor:            │   │
+│       - temp_indoor → Shelly BLU (via thermostat API)   │   │
+│       - temp_buffer → Shelly BLU tank (via thermostat)  │   │
+│                                                         │   │
+│  Turn OFF Logic (when heat pump is ON):                 │   │
+│    IF outdoor_temp >= threshold AND room_temp >= threshold: │
+│       1. POST /thermostat/config {"mode": "OFF"}       │   │
+│       2. Write Coil 00001 = False ──────────► Modbus   │   │
+│       3. Log decision with sensor values                │   │
+│                                                         │   │
+│  Turn ON Logic (when heat pump is OFF):                 │   │
+│    IF outdoor_temp < threshold AND room_temp < threshold:   │
+│       1. Write Coil 00001 = True ───────────► Modbus   │   │
+│       2. POST /thermostat/config {"mode": "AUTO"}      │   │
+│       3. Log decision with sensor values                │   │
+│                                                         │   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Configuration** (`config.json`):
+```json
+{
+  "power_management": {
+    "enabled": true,
+    "sensor_sources": {
+      "outdoor_temp": "temp_outdoor",
+      "room_temp": "temp_indoor"
+    },
+    "turn_off_when": {
+      "outdoor_temp_above_or_equal": 15.0,
+      "room_temp_above_or_equal": 21.5
+    },
+    "turn_on_when": {
+      "outdoor_temp_below": 14.0,
+      "room_temp_below": 21.5
+    },
+    "check_interval_seconds": 300
+  }
+}
+```
+
+**Data Flow**:
+1. PowerManager background task runs every 5 minutes (configurable)
+2. Reads current heat pump power state from status.json
+3. Fetches temperatures from configured sensor sources
+4. Evaluates turn_off_when or turn_on_when conditions
+5. If conditions met, executes power state change sequence
+6. Logs decision with sensor names and values for transparency
+
+**Sensor Sources**:
+- `temp_indoor`: Shelly BLU indoor sensor (via thermostat API /api/v1/thermostat/status)
+- `temp_outdoor`: Shelly BLU outdoor sensor (via thermostat API /api/v1/thermostat/status)
+- `temp_buffer`: Shelly BLU buffer tank sensor (via thermostat API /api/v1/thermostat/status)
+- `temp_odu`: Heat pump ODU sensor (via Modbus register 30013, read from status.json)
+
+**Benefits**:
+- Prevents unnecessary heating when outdoor temperature is mild
+- Ensures room comfort is maintained before shutting down
+- Flexible sensor selection (e.g., use protected outdoor sensor instead of unreliable ODU sensor)
+- Automatic mode synchronization prevents circulation pump waste
+- Hysteresis prevents rapid cycling (turn_off at 15°C, turn_on at 14°C)
+
+### 6. Prometheus Metrics
+
+**Purpose**: Export heat pump operational metrics for time-series monitoring and visualization in Grafana.
+
+**Technology**: prometheus_client library
+
+**Key Metrics**:
+
+**Temperature Metrics** (Gauge):
+- `heatpump_flow_temperature_celsius`: Flow temperature (water outlet)
+- `heatpump_return_temperature_celsius`: Return temperature (water inlet)
+- `heatpump_outdoor_temperature_celsius`: Outdoor air temperature
+- `heatpump_target_temperature_celsius`: Target temperature setpoint
+- `heatpump_temperature_delta_celsius`: Calculated delta (flow - return)
+
+**Flow and Pressure Metrics** (Gauge):
+- `heatpump_flow_rate_lpm`: Water flow rate in liters per minute
+- `heatpump_water_pressure_bar`: Water pressure in bar
+
+**Status Metrics** (Gauge, binary 0/1):
+- `heatpump_power_state`: Heat pump power state (0=OFF, 1=ON)
+- `heatpump_compressor_running`: Compressor operational status
+- `heatpump_water_pump_running`: Water circulation pump status
+
+**Operating Mode and Errors** (Gauge):
+- `heatpump_operating_mode`: Operating mode (0=Standby, 1=Defrost, 2=Heating, 3=Auto, 4=Manual Heating)
+- `heatpump_error_code`: Error code (0 = no error)
+
+**Data Flow**:
+1. Monitor daemon writes status.json every 30 seconds
+2. Metrics updater background task reads status.json every 30 seconds
+3. Updates all Prometheus gauge values
+4. Prometheus server scrapes /metrics endpoint every 30 seconds
+5. Grafana queries Prometheus for visualization
+
+**Endpoint**: `GET /metrics` (Prometheus text format)
 
 ## Modbus Register Mapping
 

@@ -21,7 +21,9 @@ A Docker-based software stack for interfacing with an LG R290 7kW heat pump via 
 - **LG Auto Mode**: Uses LG's internal heating curve with adjustable offset (-5 to +5K)
 - **Manual Heating Mode**: Direct flow temperature control (33-50°C) with slider
 - **Power Control**: Turn heat pump ON/OFF via API and UI
-- **Real-time Monitoring**: Flow temperature, return temperature, outdoor temperature, system status
+- **Power Management**: Automatic power control based on outdoor/room temperature thresholds with configurable sensor sources
+- **Real-time Monitoring**: Flow temperature, return temperature, outdoor temperature, flow rate, water pressure, system status
+- **Prometheus Metrics**: Export temperature, power state, and operational metrics for Grafana visualization
 - **Instant UI Response**: Mode sections appear immediately when switching modes
 
 ### Web UI Features
@@ -40,6 +42,13 @@ External integration with **[shelly-blu-ht](https://github.com/stephan-aichholze
 - Automatically adjusts LG offset based on thermostat mode
 - Backend-only integration (no thermostat GUI in this project)
 - Offset synchronization for comfort vs efficiency balance
+- Configurable sensor sources (indoor, outdoor, buffer tank temperatures via Shelly BLU sensors)
+
+### Automation
+- **Time-based Scheduling**: Automatic temperature adjustment based on day/time schedules
+- **Power Management**: Intelligent heat pump power control based on outdoor and room temperature thresholds
+- **Mode Synchronization**: Thermostat mode automatically synchronized with power management state
+- **Sensor Flexibility**: Choose between Shelly BLU sensors or heat pump ODU sensor for power management decisions
 
 ---
 
@@ -109,6 +118,8 @@ Configuration is managed via environment variables in `docker-compose.yml` and `
 - `MODBUS_UNIT_ID` - LG heat pump Modbus device ID (typically 5 or 7)
 - `POLL_INTERVAL` - Polling interval in seconds (default: 20)
 - `THERMOSTAT_API_URL` - Thermostat API URL (optional, for thermostat integration)
+- `ENABLE_SCHEDULER` - Enable time-based scheduling (default: true)
+- `TZ` - Timezone for scheduler (default: Europe/Vienna)
 
 **Example `.env` for production:**
 ```bash
@@ -123,7 +134,7 @@ For complete configuration reference, see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.m
 
 ### LG Mode Configuration
 
-The system supports two operating modes configured in `service/config.json`:
+The system supports multiple operating modes and automation features configured in `service/config.json`:
 
 **1. LG Auto Mode Offset** - Adjusts LG's heating curve:
 ```json
@@ -132,8 +143,8 @@ The system supports two operating modes configured in `service/config.json`:
     "enabled": true,
     "thermostat_mode_mappings": {
       "ECO": -2,    // Energy saving
-      "AUTO": 2,    // Comfort
-      "ON": 2,      // Comfort
+      "AUTO": 1,    // Balanced comfort
+      "ON": 2,      // Full comfort
       "OFF": -5     // Minimal heating
     },
     "settings": {
@@ -155,6 +166,34 @@ The system supports two operating modes configured in `service/config.json`:
   }
 }
 ```
+
+**3. Power Management** - Automatic power control based on temperature thresholds:
+```json
+{
+  "power_management": {
+    "enabled": true,
+    "sensor_sources": {
+      "outdoor_temp": "temp_outdoor",  // Shelly outdoor sensor
+      "room_temp": "temp_indoor"       // Shelly indoor sensor
+    },
+    "turn_off_when": {
+      "outdoor_temp_above_or_equal": 15.0,
+      "room_temp_above_or_equal": 21.5
+    },
+    "turn_on_when": {
+      "outdoor_temp_below": 14.0,
+      "room_temp_below": 21.5
+    },
+    "check_interval_seconds": 300
+  }
+}
+```
+
+**Available sensor sources:**
+- `temp_indoor` - Shelly BLU indoor sensor (via thermostat API)
+- `temp_outdoor` - Shelly BLU outdoor sensor (via thermostat API)
+- `temp_buffer` - Shelly BLU buffer tank sensor (via thermostat API)
+- `temp_odu` - Heat pump outdoor unit sensor (via Modbus register 30013)
 
 ### Modbus Registers
 
@@ -434,8 +473,11 @@ Key features:
 - ✅ LG Auto Mode with offset adjustment (±5K)
 - ✅ Manual Heating Mode with direct temperature control
 - ✅ Thermostat integration with automatic offset adjustment
+- ✅ Power management with configurable sensor sources (Shelly BLU or heat pump sensors)
 - ✅ Scheduler support for time-based automation
+- ✅ Prometheus metrics export for Grafana visualization
+- ✅ Flow rate and water pressure monitoring
 - ✅ Production-ready Modbus communication with retry logic
-- ✅ Responsive dark mode UI optimized for kiosk displays
+- ✅ Responsive dark mode UI optimized for kiosk displays with screensaver
 
 For detailed version history and release notes, see [CHANGELOG.md](CHANGELOG.md).

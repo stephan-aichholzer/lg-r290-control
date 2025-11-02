@@ -8,12 +8,10 @@ title Network Architecture - Docker Multi-Stack Communication
 package "Host Machine (192.168.2.11)" {
 
     package "lg_r290_control Stack" {
-        rectangle "heatpump-mock\nPort 502 → 5020" as Mock CONTAINER_COLOR
         rectangle "heatpump-service\nPort 8000 → 8002" as Service CONTAINER_COLOR
         rectangle "heatpump-ui\nPort 80 → 8080" as UI CONTAINER_COLOR
 
         cloud "heatpump-net\n(bridge)" as NetHP NETWORK_COLOR {
-            Mock -- NetHP
             Service -- NetHP
             UI -- NetHP
         }
@@ -57,7 +55,7 @@ package "Host Machine (192.168.2.11)" {
 package "Local Network (192.168.2.0/24)" {
     actor "User Browser\n192.168.2.195" as Browser
     rectangle "Shelly BLU H&T\n192.168.2.12" as Shelly EXTERNAL_COLOR
-    rectangle "LG R290 Heat Pump\n(via RS485 Gateway)" as RealHeatPump EXTERNAL_COLOR
+    rectangle "LG R290 Heat Pump\nvia Waveshare Gateway\n192.168.2.10:8899" as RealHeatPump EXTERNAL_COLOR
 }
 
 ' Internal Docker connections
@@ -80,30 +78,30 @@ Browser --> Grafana : HTTP: 192.168.2.11:3000\n(Grafana)
 Shelly --> Poller : HTTP: 192.168.2.12\n(Sensor data)
 Poller --> InfluxDB : HTTP: 192.168.2.11:8086\n(Store data)
 
-Mock ..> RealHeatPump : Modbus TCP: 502\n(when using real hardware)
+Service --> RealHeatPump : Modbus TCP: 192.168.2.10:8899\n(Heat pump control)
 
 note right of Service
   **heatpump-service Networks:**
 
   1. heatpump-net (internal)
-     - Access mock server
-     - Container name: heatpump-mock
-     - Port: 502 (Modbus TCP)
+     - Communication between UI and service
+     - Container names: lg_r290_service, heatpump-ui
 
   2. shelly_bt_temp_default (external)
      - Access thermostat API
      - Container name: iot-api
      - Port: 8000 (HTTP)
+     - Sensor data: temp_indoor, temp_outdoor, temp_buffer
 
   3. modbus_default (external)
      - Expose /metrics for Prometheus
      - Container name: lg_r290_service
      - Port: 8000 (HTTP /metrics endpoint)
 
-  **Why multiple networks needed:**
-  - Can't use host network (breaks mock access)
-  - Must join external networks for integration
-  - Docker DNS resolves container names
+  **External Hardware:**
+  - LG R290 via Waveshare RS485-to-Ethernet gateway
+  - Gateway IP: 192.168.2.10:8899
+  - Modbus TCP communication
 end note
 
 note left of Browser

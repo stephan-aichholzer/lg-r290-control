@@ -1,0 +1,101 @@
+@startuml Component Diagram
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+title Component Diagram - LG R290 Control System Internal Architecture
+
+Container_Boundary(ui_container, "Web UI Container (Nginx)") {
+    Component(html_ui, "Web Interface", "HTML5, CSS, JavaScript", "Responsive dark mode UI with gauges, controls, and screensaver")
+    Component(nginx, "Nginx", "Web Server", "Serves static files, reverse proxy")
+}
+
+Container_Boundary(api_container, "API Service Container (FastAPI)") {
+    Component(api, "REST API", "FastAPI", "HTTP endpoints for status, control, and metrics")
+    Component(modbus_client, "Modbus Client", "pymodbus AsyncModbusTcpClient", "Async Modbus TCP communication with caching")
+    Component(scheduler, "Scheduler", "Python background task", "Time-based temperature scheduling")
+    Component(power_mgr, "Power Manager", "Python background task", "Automatic power control based on temp thresholds")
+    Component(metrics, "Metrics Exporter", "prometheus_client", "Prometheus metrics updater")
+    Component(lg_mode, "LG Mode Controller", "Python module", "Auto/Manual heating mode management")
+    Component(monitor, "Monitor Daemon", "Python background task", "30s Modbus polling, writes status.json")
+}
+
+Container_Boundary(config, "Configuration") {
+    ComponentDb(config_json, "config.json", "JSON", "LG mode settings, power management, sensor sources")
+    ComponentDb(schedule_json, "schedule.json", "JSON", "Time-based schedules")
+    ComponentDb(status_json, "status.json", "JSON", "Shared status file (monitor → metrics/power_mgr)")
+}
+
+System_Ext(thermostat_api, "Thermostat API", "Shelly BLU sensors and thermostat control (external project)")
+System_Ext(modbus_gateway, "Modbus Gateway", "Waveshare RS485-to-Ethernet (192.168.2.10:8899)")
+System_Ext(prometheus, "Prometheus", "Time-series database")
+
+Rel(html_ui, nginx, "Served by")
+Rel(nginx, api, "Proxies API calls", "HTTP")
+
+Rel(api, modbus_client, "Uses for all Modbus operations")
+Rel(api, lg_mode, "Uses for mode switching")
+Rel(api, scheduler, "Control via /schedule endpoints")
+Rel(api, metrics, "Exposes /metrics endpoint")
+
+Rel(scheduler, config_json, "Loads schedule")
+Rel(scheduler, schedule_json, "Loads time-based schedules")
+Rel(scheduler, thermostat_api, "Sets temperature", "HTTP POST")
+
+Rel(power_mgr, config_json, "Loads thresholds & sensor config")
+Rel(power_mgr, status_json, "Reads heat pump state")
+Rel(power_mgr, thermostat_api, "Reads sensor temps, sets mode", "HTTP GET/POST")
+Rel(power_mgr, modbus_client, "Controls power ON/OFF")
+
+Rel(monitor, modbus_client, "Polls registers every 30s")
+Rel(monitor, status_json, "Writes status atomically")
+
+Rel(metrics, status_json, "Reads every 30s")
+Rel(prometheus, metrics, "Scrapes /metrics", "HTTP GET")
+
+Rel(modbus_client, modbus_gateway, "Modbus TCP", "Port 8899")
+Rel(lg_mode, modbus_client, "Read/write mode registers")
+Rel(lg_mode, thermostat_api, "Get thermostat mode for offset mapping", "HTTP GET")
+
+note right of power_mgr
+  **Configurable Sensors:**
+  • temp_indoor (Shelly BLU)
+  • temp_outdoor (Shelly BLU)
+  • temp_buffer (Shelly BLU)
+  • temp_odu (Heat pump Modbus)
+
+  **Decision Logic:**
+  • Turn OFF: outdoor≥15°C AND room≥21.5°C
+  • Turn ON: outdoor<14°C AND room<21.5°C
+  • Also sets thermostat mode (OFF/AUTO)
+end note
+
+note right of scheduler
+  **Features:**
+  • Day/time-based schedules
+  • Only affects AUTO/ON modes
+  • Respects manual ECO/OFF
+  • Hot reload via /schedule/reload
+  • Timezone: Europe/Vienna
+end note
+
+note right of metrics
+  **Prometheus Metrics:**
+  • Temperatures (flow, return, outdoor, target, delta)
+  • Flow rate & pressure
+  • Power state & operating mode
+  • Compressor & pump status
+  • Error codes
+end note
+
+note left of lg_mode
+  **Two Modes:**
+  • Auto (mode=3): LG heating curve + offset
+  • Manual Heating (mode=4): Direct temp control
+
+  **Auto Offset Mapping:**
+  • ECO → -2K
+  • AUTO → +1K
+  • ON → +2K
+  • OFF → -5K
+end note
+
+@enduml
