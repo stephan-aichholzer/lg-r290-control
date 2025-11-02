@@ -6,6 +6,48 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [v1.1] - 2025-11-02
+
+**Status**: Power Management and Enhanced Monitoring
+
+### Added
+
+**Power Management:**
+- Automatic heat pump ON/OFF based on outdoor and room temperature thresholds
+- Configurable sensor sources: Choose between Shelly BLU sensors (temp_indoor, temp_outdoor, temp_buffer) or heat pump ODU sensor (temp_odu)
+- Thermostat mode synchronization: Automatically sets thermostat to OFF/AUTO with power state changes
+- Hysteresis to prevent rapid cycling (1°C gap between ON/OFF thresholds)
+- Configurable check interval (default: 5 minutes)
+- Transparent logging with sensor names and values
+
+**Monitoring:**
+- Flow rate monitoring (L/min) added to Prometheus metrics
+- Water pressure monitoring (bar) added to Prometheus metrics
+- Enhanced metrics export for Grafana visualization
+- All metrics prefixed with `heatpump_`
+
+**Scheduling:**
+- Friday-specific schedule support
+- Separate scheduling configuration for different weekdays
+
+**Documentation:**
+- Complete documentation update for power management and Prometheus features
+- New C4 architecture diagrams (context and component)
+- New power management sequence diagram
+- Updated network architecture diagram (production deployment, removed mock server)
+- 13 PNG diagram exports for GitHub viewing
+- Updated UML README to v1.1
+
+### Changed
+- Network architecture updated to reflect production deployment (no mock server)
+- Power manager now supports configurable sensor sources via config.json
+
+### Fixed
+- Separate ERROR and WARNING logs from monitor.log
+- Improved rotating logs implementation
+
+---
+
 ## [v1.0] - 2025-10-21
 
 **Status**: Production ready with LG Auto mode and manual heating control
