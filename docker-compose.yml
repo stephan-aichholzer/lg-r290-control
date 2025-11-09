@@ -1,5 +1,16 @@
 version: '3.8'
 
+# ==============================================================================
+# LG R290 Heat Pump Control - Network Configuration
+# ==============================================================================
+# MODBUS_HOST: IP address of Waveshare Modbus TCP gateway (default: 192.168.2.10)
+# MODBUS_PORT: Modbus TCP port on Waveshare gateway (default: 8899)
+# MODBUS_UNIT_ID: LG Therma V heat pump Modbus device ID (default: 7)
+# THERMOSTAT_API_URL: Shelly BT thermostat API endpoint (default: http://iot-api:8000)
+# POLL_INTERVAL: Heat pump status polling interval in seconds (default: 20)
+# TZ: Timezone for scheduler (default: Europe/Vienna)
+# ==============================================================================
+
 services:
   heatpump-service:
     build:
@@ -12,10 +23,14 @@ services:
       # Mount schedule.json for hot-reload without rebuild
       - ./service/schedule.json:/app/schedule.json:ro
     environment:
-      - MODBUS_HOST=${MODBUS_HOST:-192.168.2.10}  # Waveshare gateway IP
-      - MODBUS_PORT=${MODBUS_PORT:-8899}  # Waveshare gateway port
-      - MODBUS_UNIT_ID=${MODBUS_UNIT_ID:-7}  # LG Therma V device ID
-      - POLL_INTERVAL=${POLL_INTERVAL:-20}  # Polling interval in seconds (maintains external control)
+      # Waveshare Modbus TCP Gateway (192.168.2.10:8899) - converts Modbus TCP to RS485 for LG heat pump
+      - MODBUS_HOST=${MODBUS_HOST:-192.168.2.10}
+      - MODBUS_PORT=${MODBUS_PORT:-8899}
+      - MODBUS_UNIT_ID=${MODBUS_UNIT_ID:-7}
+      # Heat pump monitoring interval - maintains external control mode (LG requirement)
+      - POLL_INTERVAL=${POLL_INTERVAL:-20}
+      # Shelly BT Thermostat API (iot-api:8000 via shelly_bt_temp_default network)
+      # Provides temperature sensor data and thermostat control status
       - THERMOSTAT_API_URL=${THERMOSTAT_API_URL:-http://iot-api:8000}
       - TZ=${TZ:-Europe/Vienna}
     networks:
