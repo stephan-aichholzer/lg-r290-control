@@ -21,7 +21,7 @@ services:
     networks:
       - heatpump-net
       - shelly_bt_temp_default
-      - modbus_default
+      - heatpump_dashboard_default
     restart: unless-stopped
 
   heatpump-ui:
@@ -45,9 +45,9 @@ services:
 
 networks:
   heatpump-net:
+    name: lg_r290_control_default
     driver: bridge
   shelly_bt_temp_default:
     external: true
-  modbus_default:
+  heatpump_dashboard_default:
     external: true
-    name: heatpump_dashboard_default
