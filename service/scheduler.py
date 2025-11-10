@@ -164,7 +164,7 @@ class Scheduler:
                     'mode': 'AUTO',  # Force AUTO mode
                     'hysteresis': current_config.get('hysteresis', 0.1),
                     'min_on_time': current_config.get('min_on_time', 40),
-                    'min_off_time': current_config.get('min_off_time', 10),
+                    'min_off_time': current_config.get('min_off_time', 20),
                     'temp_sample_count': current_config.get('temp_sample_count', 4),
                     'control_interval': current_config.get('control_interval', 60)
                 }
