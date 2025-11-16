@@ -12,6 +12,7 @@ class Screensaver {
         this.tempElement = document.getElementById('screensaver-temp');
         this.inactivityTimer = null;
         this.clockTimer = null;
+        this.tempTimer = null;
         this.vantaEffect = null;
         this.isActive = false;
 
@@ -81,8 +82,9 @@ class Screensaver {
         this.updateClock();
         this.clockTimer = setInterval(() => this.updateClock(), 1000);
 
-        // Update temperature from current display
+        // Update temperature from current display (initial + every 10 seconds)
         this.updateTemperature();
+        this.tempTimer = setInterval(() => this.updateTemperature(), 10000);
     }
 
     deactivate() {
@@ -102,6 +104,12 @@ class Screensaver {
         if (this.clockTimer) {
             clearInterval(this.clockTimer);
             this.clockTimer = null;
+        }
+
+        // Stop temperature updates
+        if (this.tempTimer) {
+            clearInterval(this.tempTimer);
+            this.tempTimer = null;
         }
 
         // Reset inactivity timer
