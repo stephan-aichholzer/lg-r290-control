@@ -39,5 +39,18 @@
     "_sensor_options": {
       "_comment": "Available sensor sources: temp_indoor, temp_outdoor, temp_buffer (all from Shelly BLU via thermostat API), temp_odu (from heat pump Modbus register 30013)"
     }
+  },
+  "offset_override": {
+    "description": "Override LG Auto offset when room is warm (e.g., stove heating). Sets offset to minimum to reduce heat pump effort.",
+    "enabled": true,
+    "sensor_source": "temp_indoor",
+    "override_when": {
+      "room_temp_above_or_equal": 23.0
+    },
+    "restore_when": {
+      "room_temp_below": 22.0
+    },
+    "override_offset": -5,
+    "check_interval_seconds": 60
   }
 }

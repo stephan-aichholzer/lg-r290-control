@@ -276,3 +276,58 @@ class Scheduler:
             'timezone': now.astimezone().tzinfo.tzname(now),
             'next_check': self.last_check_minute
         }
+
+    def get_current_active_offset(self) -> Optional[int]:
+        """
+        Get the auto_offset value from the currently active schedule period.
+
+        Finds the most recent period that has passed for today's schedule.
+        For example, if it's 10:30 and periods are at 04:30, 09:00, 17:00,
+        returns the offset from the 09:00 period.
+
+        Returns:
+            The auto_offset value (int) for the active period, or None if no schedule applies
+        """
+        if not self.enabled or not self.schedules:
+            return None
+
+        now = datetime.now()
+        current_day = now.strftime('%A').lower()
+        current_minutes = now.hour * 60 + now.minute
+
+        # Find schedule for current day
+        for schedule in self.schedules:
+            if current_day in [d.lower() for d in schedule['days']]:
+                periods = schedule.get('periods', [])
+                if not periods:
+                    continue
+
+                # Sort periods by time
+                sorted_periods = sorted(periods, key=lambda p: self._time_to_minutes(p['time']))
+
+                # Find the most recent period that has passed
+                active_period = None
+                for period in sorted_periods:
+                    period_minutes = self._time_to_minutes(period['time'])
+                    if period_minutes <= current_minutes:
+                        active_period = period
+                    else:
+                        break  # Periods are sorted, no need to check further
+
+                # If no period has passed yet today, use the last period from "yesterday"
+                # (wrap around to the last period of the day)
+                if active_period is None and sorted_periods:
+                    active_period = sorted_periods[-1]
+
+                if active_period:
+                    return active_period.get('auto_offset', 0)
+
+        return None
+
+    def _time_to_minutes(self, time_str: str) -> int:
+        """Convert HH:MM time string to minutes since midnight."""
+        try:
+            parts = time_str.split(':')
+            return int(parts[0]) * 60 + int(parts[1])
+        except (ValueError, IndexError):
+            return 0

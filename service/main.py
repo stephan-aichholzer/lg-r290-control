@@ -254,9 +254,9 @@ async def lifespan(app: FastAPI):
     logger.info("Syncing LG Auto offset with thermostat mode...")
     asyncio.create_task(sync_lg_offset_on_startup(thermostat_api_url))
 
-    # Initialize power manager
+    # Initialize power manager (pass scheduler for offset restore functionality)
     global power_manager
-    power_manager = PowerManager(modbus_client, thermostat_api_url)
+    power_manager = PowerManager(modbus_client, thermostat_api_url, scheduler=scheduler)
     asyncio.create_task(power_manager.run())
 
     yield

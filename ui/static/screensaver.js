@@ -9,7 +9,8 @@ class Screensaver {
     constructor() {
         this.overlay = document.getElementById('screensaver-overlay');
         this.timeElement = document.getElementById('screensaver-time');
-        this.tempElement = document.getElementById('screensaver-temp');
+        this.indoorTempElement = document.getElementById('screensaver-temp-indoor');
+        this.outdoorTempElement = document.getElementById('screensaver-temp-outdoor');
         this.inactivityTimer = null;
         this.clockTimer = null;
         this.tempTimer = null;
@@ -124,10 +125,16 @@ class Screensaver {
     }
 
     updateTemperature() {
-        // Get indoor/room temperature from main UI
+        // Get indoor temperature from main UI
         const indoorTempElement = document.getElementById('indoor-temp-value');
-        if (indoorTempElement) {
-            this.tempElement.textContent = indoorTempElement.textContent;
+        if (indoorTempElement && this.indoorTempElement) {
+            this.indoorTempElement.textContent = indoorTempElement.textContent;
+        }
+
+        // Get outdoor temperature from main UI
+        const outdoorTempElement = document.getElementById('outdoor-temp-value');
+        if (outdoorTempElement && this.outdoorTempElement) {
+            this.outdoorTempElement.textContent = outdoorTempElement.textContent;
         }
     }
 

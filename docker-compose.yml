@@ -20,8 +20,16 @@ services:
     ports:
       - "8002:8000"
     volumes:
-      # Mount schedule.json for hot-reload without rebuild
+      # Mount config files for hot-reload without rebuild
       - ./service/schedule.json:/app/schedule.json:ro
+      - ./service/config.json:/app/config.json:ro
+      # Mount Python source files for development/updates without rebuild
+      - ./service/main.py:/app/main.py:ro
+      - ./service/power_manager.py:/app/power_manager.py:ro
+      - ./service/scheduler.py:/app/scheduler.py:ro
+      - ./service/heatpump_api.py:/app/heatpump_api.py:ro
+      - ./service/schedule_api.py:/app/schedule_api.py:ro
+      - ./lg_r290_modbus.py:/app/lg_r290_modbus.py:ro
     environment:
       # Waveshare Modbus TCP Gateway (192.168.2.10:8899) - converts Modbus TCP to RS485 for LG heat pump
       - MODBUS_HOST=${MODBUS_HOST:-192.168.2.10}
