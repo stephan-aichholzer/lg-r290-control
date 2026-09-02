@@ -2,30 +2,9 @@
   "enabled": true,
   "schedules": [
     {
-      "days": ["monday", "tuesday", "wednesday", "thursday"],
+      "days": ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"],
       "periods": [
-        {"time": "04:30", "target_temp": 21.9, "auto_offset": 2},
-        {"time": "09:00", "target_temp": 21.7, "auto_offset": 1},
-        {"time": "17:00", "target_temp": 21.8, "auto_offset": 2},
-        {"time": "22:00", "target_temp": 21.1, "auto_offset": -2}
-      ]
-    },
-    {
-      "days": ["friday"],
-      "periods": [
-        {"time": "04:30", "target_temp": 21.9, "auto_offset": 2},
-        {"time": "09:00", "target_temp": 21.7, "auto_offset": 1},
-        {"time": "17:00", "target_temp": 21.8, "auto_offset": 2},
-        {"time": "23:00", "target_temp": 21.1, "auto_offset": -2}
-      ]
-    },
-    {
-      "days": ["saturday", "sunday"],
-      "periods": [
-        {"time": "05:30", "target_temp": 21.9, "auto_offset": 2},
-        {"time": "10:00", "target_temp": 21.7, "auto_offset": 1},
-        {"time": "17:00", "target_temp": 21.8, "auto_offset": 2},
-        {"time": "23:00", "target_temp": 21.1, "auto_offset": -2}
+        {"time": "00:00", "target_temp": 18.0, "auto_offset": -5}
       ]
     }
   ]

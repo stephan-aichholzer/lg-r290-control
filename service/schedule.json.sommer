@@ -1,0 +1,11 @@
+{
+  "enabled": true,
+  "schedules": [
+    {
+      "days": ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"],
+      "periods": [
+        {"time": "00:00", "target_temp": 18.0, "auto_offset": -5}
+      ]
+    }
+  ]
+}

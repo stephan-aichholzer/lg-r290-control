@@ -22,18 +22,18 @@
   },
   "power_management": {
     "description": "Automatic heat pump power control based on temperature thresholds",
-    "enabled": true,
+    "enabled": false,
     "sensor_sources": {
       "outdoor_temp": "temp_outdoor",
       "room_temp": "temp_indoor"
     },
     "turn_off_when": {
-      "outdoor_temp_above_or_equal": 15.0,
-      "room_temp_above_or_equal": 21.5
+      "outdoor_temp_above_or_equal": 10.0,
+      "room_temp_above_or_equal": 18.0
     },
     "turn_on_when": {
-      "outdoor_temp_below": 14.0,
-      "room_temp_below": 21.5
+      "outdoor_temp_below": 10.0,
+      "room_temp_below": 18.0
     },
     "check_interval_seconds": 300,
     "_sensor_options": {
