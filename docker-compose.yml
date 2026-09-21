@@ -22,6 +22,8 @@ services:
       # Mount config files for hot-reload without rebuild
       - ./service/schedule.json:/app/schedule.json:ro
       - ./service/config.json:/app/config.json:ro
+      # Writable state: mode remembered across a guardian power cycle
+      - ./service/state:/app/state
       # Mount Python source files for development/updates without rebuild
       - ./service/main.py:/app/main.py:ro
       - ./service/power_manager.py:/app/power_manager.py:ro

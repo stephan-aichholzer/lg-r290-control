@@ -6,6 +6,10 @@ to save energy when heating is not needed (~150W standby power).
 
 Also handles offset override when room is warm (e.g., stove heating) to
 reduce heat pump effort without full shutdown.
+
+A guardian shutdown replaces the thermostat mode with OFF; the mode it
+replaced is persisted and handed back on the next guardian start-up, so a
+deliberate ECO (or ON) survives a power cycle instead of falling back to AUTO.
 """
 
 import asyncio
@@ -34,6 +38,10 @@ class PowerManager:
         self.offset_override_config = {}
         self.offset_override_active = False  # Track if override is currently in effect
         self.offset_override_check_interval = 60
+
+        # Thermostat mode replaced by a guardian shutdown, handed back on the
+        # next guardian start-up (so ECO/ON survive a power cycle)
+        self.state_file = self._pick_state_file()
 
         self.load_config()
 
@@ -73,6 +81,59 @@ class PowerManager:
             logger.error(f"Failed to load power manager config: {e}")
             self.enabled = False
             self.offset_override_enabled = False
+
+    @staticmethod
+    def _pick_state_file() -> Path:
+        """Prefer the mounted state directory; fall back to the container layer."""
+        mounted = Path("/app/state")
+        if mounted.is_dir():
+            return mounted / "guardian.json"
+        return Path("/app/guardian_state.json")
+
+    def _read_state(self) -> dict:
+        """Read persisted guardian state (survives service restarts)."""
+        try:
+            if self.state_file.exists():
+                with open(self.state_file) as f:
+                    return json.load(f)
+        except Exception as e:
+            logger.error(f"Failed to read guardian state from {self.state_file}: {e}")
+        return {}
+
+    def _write_state(self, data: dict) -> None:
+        """Write guardian state atomically, so a power cut cannot truncate it."""
+        try:
+            self.state_file.parent.mkdir(parents=True, exist_ok=True)
+            tmp = self.state_file.with_suffix(".tmp")
+            with open(tmp, "w") as f:
+                json.dump(data, f, indent=2)
+            tmp.replace(self.state_file)
+        except Exception as e:
+            logger.error(f"Failed to write guardian state to {self.state_file}: {e}")
+
+    async def _get_thermostat_mode(self) -> Optional[str]:
+        """Read the current thermostat mode (AUTO/ECO/ON/OFF)."""
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.get(f"{self.thermostat_api_url}/api/v1/thermostat/config")
+                resp.raise_for_status()
+                return resp.json().get('mode')
+        except Exception as e:
+            logger.error(f"Failed to read thermostat mode: {e}")
+            return None
+
+    def _mapped_offset_for_mode(self, mode: str) -> Optional[int]:
+        """LG Auto offset configured for a thermostat mode (lg_auto_offset mappings)."""
+        try:
+            with open("/app/config.json") as f:
+                cfg = json.load(f).get('lg_auto_offset', {})
+            if not cfg.get('enabled', False):
+                return None
+            value = cfg.get('thermostat_mode_mappings', {}).get(mode)
+            return int(value) if value is not None else None
+        except Exception as e:
+            logger.error(f"Failed to read LG offset mapping for {mode}: {e}")
+            return None
 
     async def _get_temperature(self, sensor_source: str) -> float:
         """
@@ -185,7 +246,14 @@ class PowerManager:
                 if outdoor_ok and room_ok:
                     logger.info(f"💡 Turning OFF: outdoor={outdoor_temp:.1f}°C ({outdoor_source}), room={room_temp:.1f}°C ({room_source})")
 
-                    # Step 1: Set thermostat mode to OFF (stops circulation pump)
+                    # Step 1: Remember the mode we are about to replace, so the
+                    # next start-up hands control back to it (e.g. ECO)
+                    previous_mode = await self._get_thermostat_mode()
+                    if previous_mode and previous_mode != "OFF":
+                        self._write_state({"resume_mode": previous_mode})
+                        logger.info(f"💡 Remembered thermostat mode for resume: {previous_mode}")
+
+                    # Step 2: Set thermostat mode to OFF (stops circulation pump)
                     await self._set_thermostat_mode("OFF")
 
                     # Step 2: Turn off heat pump power
@@ -214,19 +282,40 @@ class PowerManager:
                     else:
                         logger.error("💡 Failed to restore LG Auto mode after power on")
 
-                    # Step 4: Restore scheduled offset
-                    scheduled_offset = None
-                    if self.scheduler:
-                        scheduled_offset = self.scheduler.get_current_active_offset()
-                    if scheduled_offset is not None:
-                        await self._set_auto_mode_offset(scheduled_offset)
-                        logger.info(f"💡 Scheduled offset restored: {scheduled_offset:+d}K")
+                    # Step 4: Decide which mode to hand back to. Only restore the
+                    # remembered mode if nobody changed it while power was off.
+                    current_mode = await self._get_thermostat_mode()
+                    resume_mode = None
+                    if current_mode in (None, "OFF"):
+                        resume_mode = self._read_state().get("resume_mode") or "AUTO"
                     else:
-                        logger.info("💡 No active schedule, using default offset 0")
-                        await self._set_auto_mode_offset(0)
+                        logger.info(f"💡 Mode is {current_mode} (changed while off) - leaving it untouched")
+                    effective_mode = resume_mode or current_mode
 
-                    # Step 5: Set thermostat mode to AUTO (enables automatic pump control)
-                    await self._set_thermostat_mode("AUTO")
+                    # Step 5: Restore the offset belonging to that mode. ECO/ON use
+                    # their configured mapping; AUTO follows the schedule.
+                    if effective_mode in ("ECO", "ON"):
+                        mapped = self._mapped_offset_for_mode(effective_mode)
+                        if mapped is not None:
+                            await self._set_auto_mode_offset(mapped)
+                            logger.info(f"💡 {effective_mode} offset restored: {mapped:+d}K")
+                        else:
+                            logger.info(f"💡 No offset mapping for {effective_mode}, offset left unchanged")
+                    else:
+                        scheduled_offset = None
+                        if self.scheduler:
+                            scheduled_offset = self.scheduler.get_current_active_offset()
+                        if scheduled_offset is not None:
+                            await self._set_auto_mode_offset(scheduled_offset)
+                            logger.info(f"💡 Scheduled offset restored: {scheduled_offset:+d}K")
+                        else:
+                            logger.info("💡 No active schedule, using default offset 0")
+                            await self._set_auto_mode_offset(0)
+
+                    # Step 6: Hand control back to the remembered mode
+                    if resume_mode:
+                        await self._set_thermostat_mode(resume_mode)
+                        self._write_state({})
 
         except Exception as e:
             logger.error(f"Power manager error: {e}")

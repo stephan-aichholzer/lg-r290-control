@@ -39,3 +39,6 @@ CLAUDE.md
 ai_mode_log.csv
 status.json
 nohup.out
+
+# Guardian runtime state
+service/state/
