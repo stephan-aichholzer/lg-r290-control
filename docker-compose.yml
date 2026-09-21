@@ -1,5 +1,3 @@
-version: '3.8'
-
 # ==============================================================================
 # LG R290 Heat Pump Control - Network Configuration
 # ==============================================================================
@@ -16,6 +14,7 @@ services:
     build:
       context: .
       dockerfile: service/Dockerfile
+    image: lg_r290_control_heatpump-service:latest
     container_name: lg_r290_service
     ports:
       - "8002:8000"
@@ -51,6 +50,7 @@ services:
     build:
       context: ./ui
       dockerfile: Dockerfile
+    image: lg_r290_control_heatpump-ui:latest
     container_name: lg_r290_ui
     ports:
       - "8080:80"
@@ -70,6 +70,9 @@ networks:
   heatpump-net:
     name: lg_r290_control_default
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
   shelly_bt_temp_default:
     external: true
   heatpump_dashboard_default:

@@ -32,7 +32,7 @@ BOLD='\033[1m'
 
 # Configuration
 API_URL="http://localhost:8002"
-THERMOSTAT_URL="http://192.168.2.11:8001"
+THERMOSTAT_URL="http://192.168.2.14:8001"
 REFRESH_INTERVAL=5
 
 # Check if jq is available

@@ -214,7 +214,7 @@ async def lifespan(app: FastAPI):
     global modbus_client, scheduler
 
     # Startup
-    thermostat_api_url = os.getenv("THERMOSTAT_API_URL", "http://192.168.2.11:8001")
+    thermostat_api_url = os.getenv("THERMOSTAT_API_URL", "http://iot-api:8000")
 
     # Connect Modbus client for write operations (read is from status.json)
     logger.info("Connecting to Modbus gateway for control operations...")
