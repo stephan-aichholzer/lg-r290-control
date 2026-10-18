@@ -7,6 +7,9 @@ to save energy when heating is not needed (~150W standby power).
 Also handles offset override when room is warm (e.g., stove heating) to
 reduce heat pump effort without full shutdown.
 
+Thermostat mode ON overrides the temperature rules entirely: the heat pump
+stays powered and is powered up if needed. AUTO and ECO are unaffected.
+
 A guardian shutdown replaces the thermostat mode with OFF; the mode it
 replaced is persisted and handed back on the next guardian start-up, so a
 deliberate ECO (or ON) survives a power cycle instead of falling back to AUTO.
@@ -174,7 +177,7 @@ class PowerManager:
             logger.error(f"Error reading temperature from {sensor_source}: {e}")
             return None
 
-    async def _set_thermostat_mode(self, mode: str):
+    async def _set_thermostat_mode(self, mode: str, target_temp: float = None):
         """
         Set thermostat mode (AUTO/ECO/ON/OFF) via thermostat API.
 
@@ -184,6 +187,9 @@ class PowerManager:
 
         Args:
             mode: Thermostat mode to set ("AUTO", "ECO", "ON", or "OFF")
+            target_temp: Optional target temperature to apply at the same time.
+                Used when handing control back to the schedule, whose boundary
+                was missed while the heat pump was powered off.
         """
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
@@ -195,7 +201,7 @@ class PowerManager:
                 # Update only the mode, preserve all other settings
                 new_config = {
                     'mode': mode,
-                    'target_temp': current_config.get('target_temp', 22.0),
+                    'target_temp': target_temp if target_temp is not None else current_config.get('target_temp', 22.0),
                     'eco_temp': current_config.get('eco_temp', 19.0),
                     'hysteresis': current_config.get('hysteresis', 0.1),
                     'min_on_time': current_config.get('min_on_time', 40),
@@ -211,7 +217,10 @@ class PowerManager:
                 )
                 resp.raise_for_status()
 
-                logger.info(f"✓ Thermostat mode set to {mode}")
+                if target_temp is not None:
+                    logger.info(f"✓ Thermostat mode set to {mode}, target {target_temp}°C")
+                else:
+                    logger.info(f"✓ Thermostat mode set to {mode}")
 
         except Exception as e:
             logger.error(f"Failed to set thermostat mode to {mode}: {e}")
@@ -238,8 +247,19 @@ class PowerManager:
                 logger.warning(f"Missing temperature data: outdoor={outdoor_temp} ({outdoor_source}), room={room_temp} ({room_source})")
                 return
 
+            # Thermostat mode ON means the user wants heat regardless of the
+            # weather: keep the heat pump powered, and power it up if it is off.
+            # Without this, forcing ON with the pump unpowered just drains the
+            # buffer into the house, and the warmer room then blocks the
+            # temperature rule that would have restored power.
+            mode = await self._get_thermostat_mode()
+            force_on = (mode == "ON")
+
             # Turn OFF logic
             if is_on:
+                if force_on:
+                    return
+
                 outdoor_ok = outdoor_temp >= self.turn_off_when.get('outdoor_temp_above_or_equal', 999)
                 room_ok = room_temp >= self.turn_off_when.get('room_temp_above_or_equal', 999)
 
@@ -265,8 +285,11 @@ class PowerManager:
                 outdoor_ok = outdoor_temp < self.turn_on_when.get('outdoor_temp_below', -999)
                 room_ok = room_temp < self.turn_on_when.get('room_temp_below', -999)
 
-                if outdoor_ok and room_ok:
-                    logger.info(f"💡 Turning ON: outdoor={outdoor_temp:.1f}°C ({outdoor_source}), room={room_temp:.1f}°C ({room_source})")
+                if (outdoor_ok and room_ok) or force_on:
+                    if force_on and not (outdoor_ok and room_ok):
+                        logger.info(f"💡 Turning ON: thermostat mode is ON (override) - outdoor={outdoor_temp:.1f}°C ({outdoor_source}), room={room_temp:.1f}°C ({room_source})")
+                    else:
+                        logger.info(f"💡 Turning ON: outdoor={outdoor_temp:.1f}°C ({outdoor_source}), room={room_temp:.1f}°C ({room_source})")
 
                     # Step 1: Turn on heat pump power
                     from lg_r290_modbus import set_power, set_lg_mode
@@ -291,6 +314,7 @@ class PowerManager:
                     else:
                         logger.info(f"💡 Mode is {current_mode} (changed while off) - leaving it untouched")
                     effective_mode = resume_mode or current_mode
+                    scheduled_target = None
 
                     # Step 5: Restore the offset belonging to that mode. ECO/ON use
                     # their configured mapping; AUTO follows the schedule.
@@ -305,6 +329,7 @@ class PowerManager:
                         scheduled_offset = None
                         if self.scheduler:
                             scheduled_offset = self.scheduler.get_current_active_offset()
+                            scheduled_target = self.scheduler.get_current_active_target()
                         if scheduled_offset is not None:
                             await self._set_auto_mode_offset(scheduled_offset)
                             logger.info(f"💡 Scheduled offset restored: {scheduled_offset:+d}K")
@@ -312,9 +337,14 @@ class PowerManager:
                             logger.info("💡 No active schedule, using default offset 0")
                             await self._set_auto_mode_offset(0)
 
-                    # Step 6: Hand control back to the remembered mode
+                    # Step 6: Hand control back to the remembered mode. For AUTO also
+                    # apply the active period's target, because the schedule only fires
+                    # at its boundary times and skipped every one while power was off.
                     if resume_mode:
-                        await self._set_thermostat_mode(resume_mode)
+                        if resume_mode == "AUTO" and scheduled_target is not None:
+                            await self._set_thermostat_mode(resume_mode, scheduled_target)
+                        else:
+                            await self._set_thermostat_mode(resume_mode)
                         self._write_state({})
 
         except Exception as e:
