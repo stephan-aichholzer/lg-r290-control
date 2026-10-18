@@ -5,27 +5,27 @@
       "days": ["monday", "tuesday", "wednesday", "thursday"],
       "periods": [
         {"time": "04:30", "target_temp": 22.0, "auto_offset": 2},
-        {"time": "09:00", "target_temp": 20.0, "auto_offset": 0},
-        {"time": "17:00", "target_temp": 21.0, "auto_offset": 2},
-        {"time": "22:00", "target_temp": 19.0, "auto_offset": -2}
+        {"time": "09:00", "target_temp": 20.5, "auto_offset": 0},
+        {"time": "17:00", "target_temp": 22.0, "auto_offset": 2},
+        {"time": "22:00", "target_temp": 19.5, "auto_offset": -2}
       ]
     },
     {
       "days": ["friday"],
       "periods": [
         {"time": "04:30", "target_temp": 22.0, "auto_offset": 2},
-        {"time": "09:00", "target_temp": 20.0, "auto_offset": 0},
-        {"time": "17:00", "target_temp": 21.0, "auto_offset": 2},
-        {"time": "23:00", "target_temp": 19.0, "auto_offset": -2}
+        {"time": "09:00", "target_temp": 20.5, "auto_offset": 0},
+        {"time": "17:00", "target_temp": 22.0, "auto_offset": 2},
+        {"time": "23:00", "target_temp": 19.5, "auto_offset": -2}
       ]
     },
     {
       "days": ["saturday", "sunday"],
       "periods": [
         {"time": "05:30", "target_temp": 22.0, "auto_offset": 2},
-        {"time": "10:00", "target_temp": 20.0, "auto_offset": 0},
-        {"time": "17:00", "target_temp": 21.0, "auto_offset": 2},
-        {"time": "23:00", "target_temp": 19.0, "auto_offset": -2}
+        {"time": "10:00", "target_temp": 20.5, "auto_offset": 0},
+        {"time": "17:00", "target_temp": 22.0, "auto_offset": 2},
+        {"time": "23:00", "target_temp": 19.5, "auto_offset": -2}
       ]
     }
   ]

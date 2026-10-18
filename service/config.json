@@ -3,7 +3,7 @@
     "description": "LG Auto Mode offset adjustment based on thermostat mode (ECO/AUTO/ON/OFF)",
     "enabled": true,
     "thermostat_mode_mappings": {
-      "ECO": -2,
+      "ECO": -5,
       "AUTO": 0,
       "ON": 2,
       "OFF": -5
@@ -22,23 +22,24 @@
   },
   "power_management": {
     "description": "Automatic heat pump power control based on temperature thresholds",
-    "enabled": true,
+    "enabled": false,
     "sensor_sources": {
       "outdoor_temp": "temp_outdoor",
       "room_temp": "temp_indoor"
     },
     "turn_off_when": {
       "outdoor_temp_above_or_equal": 15.0,
-      "room_temp_above_or_equal": 21.5
+      "room_temp_above_or_equal": 21.6
     },
     "turn_on_when": {
-      "outdoor_temp_below": 12.0,
-      "room_temp_below": 21.0
+      "outdoor_temp_below": 15.0,
+      "room_temp_below": 21.6
     },
     "check_interval_seconds": 300,
     "_sensor_options": {
       "_comment": "Available sensor sources: temp_indoor, temp_outdoor, temp_buffer (all from Shelly BLU via thermostat API), temp_odu (from heat pump Modbus register 30013)"
-    }
+    },
+    "_disabled_note": "Disabled 2026-10-18: the paired outdoor AND room conditions were too easy to deadlock - a drained buffer warms the room, which then blocks the turn-on rule. offset_override (stove detection) below is unaffected and stays active."
   },
   "offset_override": {
     "description": "Override LG Auto offset when room is warm (e.g., stove heating). Sets offset to minimum to reduce heat pump effort.",
