@@ -151,6 +151,46 @@ async def set_lg_auto_mode_on_startup():
         logger.error(f"Error setting LG Auto mode on startup: {e}")
 
 
+async def watch_thermostat_mode(thermostat_api_url: str):
+    """
+    Restore LG Auto mode whenever the thermostat mode changes.
+
+    The thermostat mode (AUTO/ON/ECO/OFF) and the LG mode (Auto heating curve
+    vs manual flow temperature) are independent axes, but switching the
+    thermostat is the point at which the heat pump should go back to its
+    heating curve. This watches for the change from any source - the web UI,
+    the API, or the scheduler - rather than relying on the browser to do it.
+
+    The first observation after start only records the mode, so a restart does
+    not itself count as a change.
+    """
+    last_mode = None
+    while True:
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.get(f"{thermostat_api_url}/api/v1/thermostat/config")
+                resp.raise_for_status()
+                mode = resp.json().get('mode')
+
+            if mode and last_mode and mode != last_mode:
+                logger.info(f"Thermostat mode changed {last_mode} -> {mode}, restoring LG Auto mode")
+                if modbus_client:
+                    if await set_lg_mode(modbus_client, 3):
+                        logger.info("✅ LG Auto mode restored after thermostat mode change")
+                    else:
+                        logger.error("❌ Failed to restore LG Auto mode after thermostat mode change")
+                else:
+                    logger.warning("Modbus client not connected - cannot restore LG Auto mode")
+
+            if mode:
+                last_mode = mode
+
+        except Exception as e:
+            logger.error(f"Error in thermostat mode watcher: {e}")
+
+        await asyncio.sleep(60)
+
+
 async def sync_lg_offset_on_startup(thermostat_api_url: str):
     """
     Sync LG Auto mode offset with current thermostat mode on service startup.
@@ -253,6 +293,10 @@ async def lifespan(app: FastAPI):
     # Sync LG Auto offset with current thermostat mode on startup
     logger.info("Syncing LG Auto offset with thermostat mode...")
     asyncio.create_task(sync_lg_offset_on_startup(thermostat_api_url))
+
+    # Restore LG Auto mode whenever the thermostat mode changes
+    logger.info("Starting thermostat mode watcher...")
+    asyncio.create_task(watch_thermostat_mode(thermostat_api_url))
 
     # Initialize power manager (pass scheduler for offset restore functionality)
     global power_manager
