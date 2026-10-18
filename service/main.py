@@ -191,61 +191,79 @@ async def watch_thermostat_mode(thermostat_api_url: str):
         await asyncio.sleep(60)
 
 
-async def sync_lg_offset_on_startup(thermostat_api_url: str):
+async def apply_schedule_on_startup(thermostat_api_url: str, scheduler):
     """
-    Sync LG Auto mode offset with current thermostat mode on service startup.
+    Put the thermostat into AUTO and apply the schedule period that is active now.
 
-    This ensures that after a power outage/reboot, the LG offset matches the
-    thermostat mode without requiring a browser to be open.
+    After a power cut or service restart the safe state is AUTO driven by the
+    schedule: the house keeps heating even if nobody notices the restart. The
+    schedule only fires at its boundary times, so without this the service would
+    come back carrying whatever target and offset were last set - and the LG
+    offset used to be forced to 0 here, because the active period was unknown.
+    get_current_active_period() now answers that, so the real period is applied.
+
+    Falls back to the thermostat_mode_mappings offset only when no schedule
+    period applies (schedule disabled or empty).
     """
     try:
         # Wait a few seconds for services to stabilize
         await asyncio.sleep(5)
 
-        logger.info("Reading thermostat mode for LG offset sync...")
-
-        # Get current thermostat mode
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.get(f"{thermostat_api_url}/api/v1/thermostat/config")
             response.raise_for_status()
-            thermostat_config = response.json()
-            current_mode = thermostat_config.get('mode', 'AUTO')
+            current_config = response.json()
+        previous_mode = current_config.get('mode', 'AUTO')
+        logger.info(f"Startup: thermostat mode was {previous_mode}")
 
-        logger.info(f"Current thermostat mode: {current_mode}")
+        period = scheduler.get_current_active_period() if scheduler else None
 
-        # Load LG offset configuration
-        config_file = Path("/app/config.json")
-        if not config_file.exists():
-            logger.warning("config.json not found - skipping LG offset sync")
-            return
+        # Put the thermostat into AUTO, with the active period's target if known
+        new_config = dict(current_config)
+        new_config['mode'] = 'AUTO'
+        if period and period.get('target_temp') is not None:
+            new_config['target_temp'] = period['target_temp']
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.post(
+                    f"{thermostat_api_url}/api/v1/thermostat/config", json=new_config
+                )
+                response.raise_for_status()
+            logger.info(
+                f"✓ Startup: thermostat set to AUTO, target {new_config.get('target_temp')}°C"
+                f"{'' if period else ' (no schedule period, target unchanged)'}"
+            )
+        except Exception as e:
+            logger.error(f"✗ Startup: failed to set thermostat to AUTO: {e}")
 
-        with open(config_file) as f:
-            config = json.load(f)
+        # Offset: the schedule owns it in AUTO; the mode mapping is only a fallback
+        if period and period.get('auto_offset') is not None:
+            target_offset = period['auto_offset']
+            source = f"schedule period {period.get('time')}"
+        else:
+            config_file = Path("/app/config.json")
+            if not config_file.exists():
+                logger.warning("config.json not found - skipping LG offset sync")
+                return
+            with open(config_file) as f:
+                config = json.load(f)
+            lg_offset_config = config.get('lg_auto_offset', {})
+            if not lg_offset_config.get('enabled', False):
+                logger.info("LG Auto offset sync disabled in config")
+                return
+            target_offset = lg_offset_config.get('thermostat_mode_mappings', {}).get('AUTO', 0)
+            source = "mode mapping fallback"
 
-        lg_offset_config = config.get('lg_auto_offset', {})
-
-        if not lg_offset_config.get('enabled', False):
-            logger.info("LG Auto offset sync disabled in config")
-            return
-
-        # Get offset value for current mode
-        mode_mappings = lg_offset_config.get('thermostat_mode_mappings', {})
-        target_offset = mode_mappings.get(current_mode, 0)
-
-        logger.info(f"Setting LG Auto offset to {target_offset:+d}K for mode {current_mode}")
-
-        # Set the offset
         if modbus_client:
-            success = await set_auto_mode_offset(modbus_client, target_offset)
-            if success:
-                logger.info(f"✓ LG Auto offset synced: {target_offset:+d}K (mode: {current_mode})")
+            if await set_auto_mode_offset(modbus_client, target_offset):
+                logger.info(f"✓ LG Auto offset synced: {target_offset:+d}K ({source})")
             else:
-                logger.error(f"✗ Failed to set LG Auto offset on startup")
+                logger.error("✗ Failed to set LG Auto offset on startup")
         else:
             logger.warning("Modbus client not available - cannot sync LG offset")
 
     except Exception as e:
-        logger.error(f"Error syncing LG Auto offset on startup: {e}")
+        logger.error(f"Error applying schedule on startup: {e}")
 
 
 @asynccontextmanager
@@ -290,9 +308,9 @@ async def lifespan(app: FastAPI):
     logger.info("Setting LG Auto mode as default...")
     asyncio.create_task(set_lg_auto_mode_on_startup())
 
-    # Sync LG Auto offset with current thermostat mode on startup
-    logger.info("Syncing LG Auto offset with thermostat mode...")
-    asyncio.create_task(sync_lg_offset_on_startup(thermostat_api_url))
+    # Put the thermostat into AUTO and apply the active schedule period
+    logger.info("Applying active schedule period on startup...")
+    asyncio.create_task(apply_schedule_on_startup(thermostat_api_url, scheduler))
 
     # Restore LG Auto mode whenever the thermostat mode changes
     logger.info("Starting thermostat mode watcher...")
