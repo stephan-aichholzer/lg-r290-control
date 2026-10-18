@@ -5,7 +5,7 @@ Manages time-based temperature schedules that call the thermostat API
 to set mode=AUTO and target temperature at scheduled times.
 
 Schedule only applies when thermostat is in AUTO or ON mode.
-ECO and OFF modes are not affected by the schedule.
+ON, ECO and OFF are not affected by the schedule.
 """
 
 import asyncio
@@ -132,8 +132,8 @@ class Scheduler:
         """
         Apply scheduled action by calling thermostat API and heat pump API.
 
-        Only applies if current mode is AUTO or ON.
-        ECO and OFF modes are not affected.
+        Only applies if the current mode is AUTO. ON, ECO and OFF are set by
+        hand and are never retargeted by the schedule.
 
         Args:
             action: Dict with 'target_temp' and 'auto_offset' to apply
@@ -152,9 +152,10 @@ class Scheduler:
 
                 current_mode = current_config.get('mode', 'OFF')
 
-                # Step 2: Check if mode allows schedule application
-                if current_mode not in ['AUTO', 'ON']:
-                    logger.info(f"Schedule skipped: current mode is {current_mode} (only AUTO/ON are affected)")
+                # Step 2: The schedule owns AUTO only. ON and ECO are set by hand
+                # and must not be retargeted; OFF means off.
+                if current_mode != 'AUTO':
+                    logger.info(f"Schedule skipped: current mode is {current_mode} (schedule applies to AUTO only)")
                     return False
 
                 # Step 3: Build new config with mode=AUTO and scheduled target_temp
@@ -192,6 +193,17 @@ class Scheduler:
                 response.raise_for_status()
 
                 logger.info(f"✓ LG Auto mode offset set to {auto_offset:+d}K")
+
+                # Step 6: Restore LG Auto mode (the heating curve). The offset
+                # above only has meaning in LG Auto, so a schedule trigger also
+                # brings the heat pump back from a manual flow temperature.
+                try:
+                    resp = await client.post(f"{self.heatpump_api_url}/lg-mode", json={'mode': 3})
+                    resp.raise_for_status()
+                    logger.info("✓ LG Auto mode restored by schedule trigger")
+                except Exception as e:
+                    logger.error(f"Failed to restore LG Auto mode: {e}")
+
                 return True
 
         except httpx.HTTPError as e:
@@ -277,16 +289,16 @@ class Scheduler:
             'next_check': self.last_check_minute
         }
 
-    def get_current_active_offset(self) -> Optional[int]:
+    def get_current_active_period(self) -> Optional[Dict]:
         """
-        Get the auto_offset value from the currently active schedule period.
+        Get the currently active schedule period (time, target_temp, auto_offset).
 
         Finds the most recent period that has passed for today's schedule.
         For example, if it's 10:30 and periods are at 04:30, 09:00, 17:00,
         returns the offset from the 09:00 period.
 
         Returns:
-            The auto_offset value (int) for the active period, or None if no schedule applies
+            The active period dict, or None if no schedule applies
         """
         if not self.enabled or not self.schedules:
             return None
@@ -320,9 +332,19 @@ class Scheduler:
                     active_period = sorted_periods[-1]
 
                 if active_period:
-                    return active_period.get('auto_offset', 0)
+                    return active_period
 
         return None
+
+    def get_current_active_offset(self) -> Optional[int]:
+        """Auto offset of the currently active schedule period, or None."""
+        period = self.get_current_active_period()
+        return period.get('auto_offset', 0) if period else None
+
+    def get_current_active_target(self) -> Optional[float]:
+        """Target temperature of the currently active schedule period, or None."""
+        period = self.get_current_active_period()
+        return period.get('target_temp') if period else None
 
     def _time_to_minutes(self, time_str: str) -> int:
         """Convert HH:MM time string to minutes since midnight."""
