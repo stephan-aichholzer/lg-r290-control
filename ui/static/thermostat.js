@@ -118,6 +118,31 @@ async function updateStatus() {
  * Update UI with thermostat data
  * @param {Object} data - Thermostat status data
  */
+/**
+ * Lock the LG mode axis while the thermostat is in AUTO.
+ *
+ * In AUTO the schedule drives the LG Auto offset per period, and an offset only
+ * has meaning with the LG heating curve - so a manual flow temperature is not a
+ * valid choice there. In ON and ECO the user picks freely and the choice stays.
+ *
+ * @param {boolean} locked - true to disable the LG Auto / Manual toggle
+ */
+function setLgAxisLocked(locked) {
+    const toggle = document.getElementById('lg-mode-switch');
+    const container = document.querySelector('.lg-mode-switch-container');
+
+    if (toggle) {
+        toggle.disabled = locked;
+    }
+    if (container) {
+        container.style.opacity = locked ? '0.45' : '';
+        container.style.cursor = locked ? 'not-allowed' : '';
+        container.title = locked
+            ? 'Fixed to LG Auto while the thermostat is in AUTO - the schedule sets the offset'
+            : '';
+    }
+}
+
 function updateUI(data) {
     console.log('updateUI called with data:', data);
     console.log('elements.modeButtons:', elements.modeButtons);
@@ -125,6 +150,9 @@ function updateUI(data) {
     // Update active mode button (mode is in data.config.mode) - only toggle if needed
     const currentMode = data.config?.mode || data.mode;
     console.log('currentMode extracted:', currentMode);
+
+    // AUTO always runs the LG heating curve; ON and ECO may choose manual flow
+    setLgAxisLocked(currentMode === 'AUTO');
 
     elements.modeButtons.forEach(btn => {
         const shouldBeActive = btn.dataset.mode === currentMode;
