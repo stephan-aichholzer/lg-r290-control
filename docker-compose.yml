@@ -54,6 +54,8 @@ services:
       dockerfile: Dockerfile
     image: lg_r290_control_heatpump-ui:latest
     container_name: lg_r290_ui
+    environment:
+      - TZ=${TZ:-Europe/Vienna}
     ports:
       - "8080:80"
     volumes:
