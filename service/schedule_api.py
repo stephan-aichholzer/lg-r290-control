@@ -160,6 +160,12 @@ BOUNDARY_STEP_MINUTES = 15
 MIN_SLOT_MINUTES = 60
 MINUTES_PER_DAY = 1440
 
+# The range the UI offers, and the only range that makes sense for a room
+# target. The Pydantic field stays at 10-30 so an older or hand-edited file
+# still reads; this is the bound a save has to clear.
+TARGET_TEMP_MIN = 18.0
+TARGET_TEMP_MAX = 24.0
+
 
 def _to_minutes(hhmm: str) -> int:
     """Minutes since midnight for an HH:MM string."""
@@ -245,11 +251,13 @@ def validate_schedule_configuration(config: ScheduleConfiguration) -> None:
                     detail=f"Schedule {idx}, period {period_idx}: Invalid time format '{period.time}' (expected HH:MM, e.g., '05:00')"
                 )
 
-            # Warn about unusual temperatures (but don't reject)
-            if period.target_temp < 18.0 or period.target_temp > 24.0:
-                logger.warning(
-                    f"Schedule {idx}, period {period_idx}: target_temp {period.target_temp}°C "
-                    f"is outside typical range (18-24°C)"
+            # Refuse temperatures outside the range the UI offers
+            if not TARGET_TEMP_MIN <= period.target_temp <= TARGET_TEMP_MAX:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Schedule {idx}, period {period_idx}: target_temp "
+                           f"{period.target_temp}°C is outside "
+                           f"{TARGET_TEMP_MIN}-{TARGET_TEMP_MAX}°C"
                 )
 
 
@@ -474,7 +482,7 @@ async def get_schedule_config():
     - Start times in HH:MM (24-hour), ascending, on 15-minute steps
     - Every slot at least 60 minutes long (night measured across midnight)
     - Days must be valid weekday names (monday-sunday, lowercase)
-    - target_temp must be between 10.0-30.0°C (typical range: 18-24°C)
+    - target_temp must be between 18.0-24.0°C, the range the UI offers
     - auto_offset must be integer -5 to +5
 
     Slots cannot be added or removed: the four of them tile the day, so the
