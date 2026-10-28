@@ -82,7 +82,9 @@ class SchedulePattern(BaseModel):
         ]
     )
     periods: List[SchedulePeriod] = Field(
-        description="Time periods with temperature and offset settings",
+        description="The four slots - morning, day, evening, night - in ascending "
+                    "time order. Writes are held to exactly four; reads stay "
+                    "tolerant so a hand-edited file can still be inspected.",
         min_length=1
     )
 
@@ -144,6 +146,75 @@ SCHEDULE_FILE = Path("/app/schedule.json")
 # Valid day names (lowercase)
 VALID_DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
 
+# Every pattern has exactly these four slots, in this order. Nothing can be
+# added or removed, so the only possible edits are moving a boundary or
+# changing a value - and "which slot is in force now" is always defined,
+# because the four of them tile the day with no gap. Night is the slot that
+# spans midnight.
+#
+# Enforced on write only. A hand-edited file that breaks the rule stays
+# readable through GET /schedule/config, and the GUI reports the violation,
+# rather than the read failing and taking the whole page with it.
+SLOT_NAMES = ['morning', 'day', 'evening', 'night']
+BOUNDARY_STEP_MINUTES = 15
+MIN_SLOT_MINUTES = 60
+MINUTES_PER_DAY = 1440
+
+
+def _to_minutes(hhmm: str) -> int:
+    """Minutes since midnight for an HH:MM string."""
+    hours, minutes = hhmm.split(':')
+    return int(hours) * 60 + int(minutes)
+
+
+def validate_slot_model(idx: int, periods: List[SchedulePeriod]) -> None:
+    """
+    Check one pattern against the fixed four-slot model.
+
+    Raises HTTPException(400) naming the slot at fault, so a rejected save
+    says which boundary is wrong rather than just "invalid".
+    """
+    if len(periods) != len(SLOT_NAMES):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Schedule {idx}: expected exactly {len(SLOT_NAMES)} slots "
+                   f"({', '.join(SLOT_NAMES)}), got {len(periods)}"
+        )
+
+    starts = [_to_minutes(period.time) for period in periods]
+
+    for slot_idx, (name, start) in enumerate(zip(SLOT_NAMES, starts)):
+        if start % BOUNDARY_STEP_MINUTES != 0:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Schedule {idx}, {name}: start time {periods[slot_idx].time} "
+                       f"is not on a {BOUNDARY_STEP_MINUTES}-minute step"
+            )
+        if slot_idx > 0 and start <= starts[slot_idx - 1]:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Schedule {idx}, {name}: start time {periods[slot_idx].time} "
+                       f"must come after {SLOT_NAMES[slot_idx - 1]} "
+                       f"({periods[slot_idx - 1].time}); slots are listed in order"
+            )
+
+    # Night wraps midnight, so its length is the only one that depends on two
+    # boundaries: the evening->night start and the night->morning start.
+    durations = [
+        starts[1] - starts[0],
+        starts[2] - starts[1],
+        starts[3] - starts[2],
+        (MINUTES_PER_DAY - starts[3]) + starts[0],
+    ]
+
+    for name, duration in zip(SLOT_NAMES, durations):
+        if duration < MIN_SLOT_MINUTES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Schedule {idx}, {name}: would last {duration} minutes, "
+                       f"minimum is {MIN_SLOT_MINUTES}"
+            )
+
 
 def validate_schedule_configuration(config: ScheduleConfiguration) -> None:
     """
@@ -159,6 +230,9 @@ def validate_schedule_configuration(config: ScheduleConfiguration) -> None:
                     status_code=400,
                     detail=f"Schedule {idx}: Invalid day '{day}'. Must be one of: {', '.join(VALID_DAYS)}"
                 )
+
+        # Validate the fixed four-slot shape before looking at values
+        validate_slot_model(idx, schedule.periods)
 
         # Validate periods
         for period_idx, period in enumerate(schedule.periods):
@@ -364,10 +438,16 @@ async def get_schedule_config():
     **Request Body**: Complete schedule configuration (same format as schedule.json)
 
     **Validation**:
+    - Exactly 4 slots per pattern, listed in order: morning, day, evening, night
+    - Start times in HH:MM (24-hour), ascending, on 15-minute steps
+    - Every slot at least 60 minutes long (night measured across midnight)
     - Days must be valid weekday names (monday-sunday, lowercase)
-    - Time must be in HH:MM format (24-hour)
     - target_temp must be between 10.0-30.0°C (typical range: 18-24°C)
     - auto_offset must be integer -5 to +5
+
+    Slots cannot be added or removed: the four of them tile the day, so the
+    schedule is always fully defined. This is checked on write only - an
+    existing file that breaks the rule is still readable.
 
     **Effect**:
     - Writes to schedule.json file (persisted across restarts)

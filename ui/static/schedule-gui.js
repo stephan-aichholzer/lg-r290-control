@@ -1,6 +1,8 @@
 // Schedule GUI - read-only view of schedule.json
 //
 // Renders one card per schedule pattern, mirroring the file's own structure.
+// Each pattern is the fixed four-slot model - morning, day, evening, night -
+// so a card is always four rows, and the slot names are positional.
 // Deliberately read-only: it only issues GET /schedule/config, so this page
 // cannot alter the heating schedule.
 //
@@ -26,6 +28,14 @@ const CONT_ROW_PX = 34;
 
 const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday',
               'friday', 'saturday', 'sunday'];
+
+// The fixed slot model, mirroring schedule_api.py: every pattern is exactly
+// these four slots in ascending time order, so there is no add, no remove and
+// no undefined hour. Night is the slot that spans midnight.
+const SLOT_NAMES = ['morning', 'day', 'evening', 'night'];
+const BOUNDARY_STEP_MINUTES = 15;
+const MIN_SLOT_MINUTES = 60;
+const MINUTES_PER_DAY = 1440;
 
 // Target temperatures are coloured across the same range the thermostat UI
 // offers, so a given colour means the same thing on both pages.
@@ -160,7 +170,7 @@ function renderDay(segments, sorted, isToday) {
             <div class="sg-row sg-row-cont ${isActive ? 'active' : ''}"
                  style="height:${rowHeight(s)}px">
                 ${rail}
-                <span class="sg-cont-text">00:00&ndash;${minutesToTime(s.end)} &middot; carried from ${s.period.time}</span>
+                <span class="sg-cont-text">night &middot; until ${minutesToTime(s.end)}, carried from ${s.period.time}</span>
                 <span class="sg-cont-temp">${s.period.target_temp.toFixed(1)}&deg;${offset}</span>
             </div>`;
         }
@@ -169,7 +179,7 @@ function renderDay(segments, sorted, isToday) {
             <div class="sg-row ${isActive ? 'active' : ''}"
                  style="height:${rowHeight(s)}px">
                 ${rail}
-                <span class="sg-row-time">${s.period.time}</span>
+                <span class="sg-row-time">${s.period.time}<em>${SLOT_NAMES[idx] || ''}</em></span>
                 <span class="sg-row-temp">${s.period.target_temp.toFixed(1)}&deg;</span>
                 ${offsetHtml(s.period.auto_offset)}
             </div>`;
@@ -207,8 +217,59 @@ function renderPattern(pattern) {
 }
 
 /**
- * Problems the API's own validation does not catch, because it checks each
- * period in isolation. Both of these are silent failures at runtime.
+ * Check one pattern against the fixed slot model, the same way the API does
+ * on write. Reads are deliberately tolerant, so a hand-edited file still
+ * renders - this is what reports it instead.
+ */
+function slotModelErrors(periods) {
+    if (periods.length !== SLOT_NAMES.length) {
+        return [`has ${periods.length} `
+                + `slot${periods.length === 1 ? '' : 's'}; the model is exactly `
+                + `${SLOT_NAMES.length} (${SLOT_NAMES.join(', ')})`];
+    }
+
+    // Sorted first, because this page judges the schedule, not the order the
+    // file happens to list it in - the API is the one that insists on
+    // ascending order on write.
+    const starts = [...periods]
+        .sort((a, b) => timeToMinutes(a.time) - timeToMinutes(b.time))
+        .map((p) => timeToMinutes(p.time));
+
+    const errors = [];
+
+    starts.forEach((start, i) => {
+        if (start % BOUNDARY_STEP_MINUTES !== 0) {
+            errors.push(`${SLOT_NAMES[i]} starts at ${minutesToTime(start)}, `
+                + `not on a ${BOUNDARY_STEP_MINUTES}-minute step`);
+        }
+        if (i > 0 && start === starts[i - 1]) {
+            errors.push(`${SLOT_NAMES[i]} and ${SLOT_NAMES[i - 1]} both start `
+                + `at ${minutesToTime(start)}`);
+        }
+    });
+
+    // Night wraps midnight, so its length is the only one set by two boundaries.
+    const durations = [
+        starts[1] - starts[0],
+        starts[2] - starts[1],
+        starts[3] - starts[2],
+        (MINUTES_PER_DAY - starts[3]) + starts[0]
+    ];
+
+    durations.forEach((duration, i) => {
+        if (duration < MIN_SLOT_MINUTES) {
+            errors.push(`${SLOT_NAMES[i]} lasts ${duration} min, `
+                + `under the ${MIN_SLOT_MINUTES} min minimum`);
+        }
+    });
+
+    return errors;
+}
+
+/**
+ * Problems the API's per-period validation does not catch, because it checks
+ * each period in isolation: day coverage, and the slot model above. All of
+ * these are silent failures at runtime.
  */
 function runChecks(config) {
     const checks = [];
@@ -251,13 +312,13 @@ function runChecks(config) {
     }
 
     config.schedules.forEach((s, i) => {
-        const times = s.periods.map((p) => p.time);
-        const dupes = times.filter((t, k) => times.indexOf(t) !== k);
-        if (dupes.length) {
+        const errors = slotModelErrors(s.periods);
+        if (errors.length) {
             checks.push({
-                level: 'warn',
-                text: `<strong>Pattern ${i + 1} repeats ${[...new Set(dupes)].join(', ')}.</strong> `
-                    + 'Only one of the duplicates will take effect.'
+                level: 'err',
+                text: `<strong>Pattern ${i + 1} (${s.days.join(', ')}) `
+                    + `breaks the slot model:</strong> ${errors.join('; ')}. `
+                    + 'Saving it from this page would be refused.'
             });
         }
     });
@@ -265,7 +326,7 @@ function runChecks(config) {
     if (!checks.length) {
         checks.push({
             level: 'ok',
-            text: 'All seven days covered exactly once, no duplicate times.'
+            text: 'All seven days covered exactly once, four valid slots each.'
         });
     }
 
