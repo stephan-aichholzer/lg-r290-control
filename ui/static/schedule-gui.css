@@ -226,6 +226,25 @@
 
 .sg-row.active { background: rgba(var(--accent-color-rgb), 0.12); }
 
+/* Collapsed midnight-to-first-period row: a muted one-liner, not to scale. */
+.sg-row-cont {
+    grid-template-columns: 6px 1fr auto;
+    background: var(--bg-tertiary);
+}
+
+.sg-cont-text,
+.sg-cont-temp {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-tertiary);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.sg-cont-text { padding-left: 8px; }
+
 .sg-rail { align-self: stretch; }
 
 .sg-row-time {
@@ -313,6 +332,7 @@
 @media (max-width: 360px) {
     .sg-wrap { padding: 10px; }
     .sg-row { grid-template-columns: 6px 62px 1fr auto; gap: 8px; }
+    .sg-row-cont { grid-template-columns: 6px 1fr auto; }
     .sg-row-temp { font-size: 22px; }
 }
 

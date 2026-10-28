@@ -19,6 +19,11 @@ const REFRESH_INTERVAL = 60000; // 60s - enough to move the "now" marker
 const PX_PER_MINUTE = 0.30;   // 1440 min -> ~432px for a full day
 const MIN_ROW_PX = 52;
 
+// The stretch from midnight to the first period of the day only repeats what
+// the evening left in force, so it is collapsed to one line instead of being
+// drawn to scale - it would otherwise be the tallest row on the card.
+const CONT_ROW_PX = 34;
+
 const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday',
               'friday', 'saturday', 'sunday'];
 
@@ -32,6 +37,12 @@ const el = (id) => document.getElementById(id);
 function timeToMinutes(hhmm) {
     const [h, m] = hhmm.split(':').map(Number);
     return h * 60 + m;
+}
+
+function minutesToTime(mins) {
+    const h = String(Math.floor(mins / 60) % 24).padStart(2, '0');
+    const m = String(mins % 60).padStart(2, '0');
+    return `${h}:${m}`;
 }
 
 function todayName() {
@@ -94,6 +105,7 @@ function offsetHtml(offset) {
 
 /** Row height in px for a segment, floored so short periods stay legible. */
 function rowHeight(segment) {
+    if (segment.wrapped) return CONT_ROW_PX;
     return Math.max(MIN_ROW_PX, (segment.end - segment.start) * PX_PER_MINUTE);
 }
 
@@ -136,13 +148,28 @@ function renderDay(segments, sorted, isToday) {
         const idx = sorted.indexOf(s.period);
         const isActive = isToday && idx === active
             && nowMinutes() >= s.start && nowMinutes() < s.end;
-        const label = s.wrapped ? '00:00' : s.period.time;
+        const rail =
+            `<span class="sg-rail" style="background:${tempColor(s.period.target_temp)}"></span>`;
+
+        if (s.wrapped) {
+            // One collapsed line: what carried over, and until when.
+            const sign = s.period.auto_offset > 0 ? '+' : '';
+            const offset = s.period.auto_offset !== 0
+                ? ` ${sign}${s.period.auto_offset}` : '';
+            return `
+            <div class="sg-row sg-row-cont ${isActive ? 'active' : ''}"
+                 style="height:${rowHeight(s)}px">
+                ${rail}
+                <span class="sg-cont-text">00:00&ndash;${minutesToTime(s.end)} &middot; carried from ${s.period.time}</span>
+                <span class="sg-cont-temp">${s.period.target_temp.toFixed(1)}&deg;${offset}</span>
+            </div>`;
+        }
 
         return `
             <div class="sg-row ${isActive ? 'active' : ''}"
                  style="height:${rowHeight(s)}px">
-                <span class="sg-rail" style="background:${tempColor(s.period.target_temp)}"></span>
-                <span class="sg-row-time">${label}${s.wrapped ? '<em>cont.</em>' : ''}</span>
+                ${rail}
+                <span class="sg-row-time">${s.period.time}</span>
                 <span class="sg-row-temp">${s.period.target_temp.toFixed(1)}&deg;</span>
                 ${offsetHtml(s.period.auto_offset)}
             </div>`;
