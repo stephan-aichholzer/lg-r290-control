@@ -74,7 +74,7 @@ check_containers() {
 
     if [ $missing -eq ${#CONTAINERS[@]} ]; then
         echo -e "${RED}❌ No containers found. Have you started the stack?${NC}"
-        echo -e "${CYAN}Run: docker-compose up -d${NC}"
+        echo -e "${CYAN}Run: docker compose up -d${NC}"
         exit 1
     fi
 }
@@ -117,8 +117,8 @@ tail_logs() {
         echo -e "${CYAN}Services: API Service, Mock Server, Web UI${NC}"
         echo ""
 
-        # Use docker-compose for colored output
-        docker-compose logs -f --tail=50
+        # Use compose for colored output. -f so this works from any cwd.
+        docker compose -f "$(dirname "$0")/docker-compose.yml" logs -f --tail=50
     else
         local container=$(get_container_name "$service")
         if [ -z "$container" ]; then

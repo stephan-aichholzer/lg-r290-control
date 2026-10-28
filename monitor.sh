@@ -334,13 +334,13 @@ ${BOLD}EXAMPLES:${NC}
     ./monitor.sh once
 
 ${BOLD}REQUIREMENTS:${NC}
-    - Docker and docker-compose
+    - Docker and the docker compose plugin
     - jq (optional, for better JSON formatting)
       Install: ${CYAN}sudo apt-get install jq${NC}
 
 ${BOLD}RELATED COMMANDS:${NC}
     ${CYAN}./logs.sh${NC}              View/tail container logs
-    ${CYAN}docker-compose ps${NC}      Container status
+    ${CYAN}docker compose ps${NC}       Container status
     ${CYAN}docker stats${NC}           Resource usage
     ${CYAN}curl ${API_URL}/docs${NC}
                             API documentation
