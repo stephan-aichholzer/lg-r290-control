@@ -19,8 +19,11 @@ services:
     ports:
       - "8002:8000"
     volumes:
-      # Mount config files for hot-reload without rebuild
-      - ./service/schedule.json:/app/schedule.json:ro
+      # Mount config files for hot-reload without rebuild.
+      # schedule.json is writable: POST /schedule/config saves through it, so
+      # an edit from the GUI lands in the repo working tree and shows up as a
+      # git diff - which is also the undo.
+      - ./service/schedule.json:/app/schedule.json
       - ./service/config.json:/app/config.json:ro
       # Writable state: mode remembered across a guardian power cycle
       - ./service/state:/app/state

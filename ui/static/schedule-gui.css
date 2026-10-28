@@ -288,6 +288,128 @@
 .sg-offset.pos { border-color: var(--accent-color); color: var(--accent-color); }
 .sg-offset.neg { border-color: var(--blue-color);   color: var(--blue-color); }
 
+/* ---------- the open row ---------- */
+
+/* Rows are tappable, so they get a pressed state and no text selection on a
+   long press. The editor replaces a row and sets its own height. */
+.sg-row[data-pattern] {
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+}
+
+.sg-row[data-pattern]:active { background: var(--surface-dark); }
+
+.sg-editor {
+    padding: 14px 12px;
+    background: var(--bg-tertiary);
+    border-bottom: 1px solid var(--surface-dark);
+}
+
+.sg-editor-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.sg-editor-slot {
+    font-size: 15px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.sg-editor-hint {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-tertiary);
+    font-variant-numeric: tabular-nums;
+}
+
+.sg-step-row {
+    display: grid;
+    grid-template-columns: 58px 1fr auto 1fr;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.sg-step-label {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-tertiary);
+}
+
+/* 44px minimum, because these are thumb targets on a phone. */
+.sg-step {
+    min-width: 44px;
+    min-height: 44px;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--text-primary);
+    background: var(--surface-dark);
+    border: 1px solid var(--surface-medium);
+    border-radius: 10px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.sg-step:active:not(:disabled) { background: var(--surface-medium); }
+
+.sg-step:disabled {
+    opacity: 0.3;
+    cursor: default;
+}
+
+.sg-step-value {
+    min-width: 76px;
+    text-align: center;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--text-primary);
+    font-variant-numeric: tabular-nums;
+}
+
+.sg-editor-note {
+    margin: 10px 0 12px;
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--text-tertiary);
+}
+
+.sg-editor-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.sg-btn {
+    flex: 1;
+    min-height: 44px;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text-primary);
+    background: var(--surface-dark);
+    border: 1px solid var(--surface-medium);
+    border-radius: 10px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.sg-btn.primary {
+    background: var(--accent-color);
+    border-color: var(--accent-color);
+    color: #000;
+}
+
+.sg-btn:disabled {
+    opacity: 0.35;
+    cursor: default;
+}
+
 /* now marker, drawn across the day column */
 .sg-nowline {
     position: absolute;
@@ -333,6 +455,8 @@
     .sg-wrap { padding: 10px; }
     .sg-row { grid-template-columns: 6px 62px 1fr auto; gap: 8px; }
     .sg-row-cont { grid-template-columns: 6px 1fr auto; }
+    .sg-step-row { grid-template-columns: 52px 1fr auto 1fr; gap: 6px; }
+    .sg-step-value { min-width: 66px; }
     .sg-row-temp { font-size: 22px; }
 }
 

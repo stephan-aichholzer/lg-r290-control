@@ -253,6 +253,38 @@ def validate_schedule_configuration(config: ScheduleConfiguration) -> None:
                 )
 
 
+def dump_schedule_json(config_dict: Dict) -> str:
+    """
+    Serialise the configuration with one period per line.
+
+    json.dump(indent=2) would explode every period across five lines, which
+    turns a one-boundary change into a 20-line diff. schedule.json lives in
+    git and gets hand-read, so the periods stay on single lines - the same
+    shape the file has always had.
+    """
+    blocks = []
+    for schedule in config_dict['schedules']:
+        periods = ',\n'.join(
+            f"        {json.dumps(period)}" for period in schedule['periods'])
+        blocks.append(
+            '    {\n'
+            f'      "days": {json.dumps(schedule["days"])},\n'
+            '      "periods": [\n'
+            f'{periods}\n'
+            '      ]\n'
+            '    }'
+        )
+
+    return (
+        '{\n'
+        f'  "enabled": {json.dumps(config_dict["enabled"])},\n'
+        '  "schedules": [\n'
+        + ',\n'.join(blocks) + '\n'
+        '  ]\n'
+        '}\n'
+    )
+
+
 # ============================================================================
 # API Endpoints
 # ============================================================================
@@ -520,9 +552,9 @@ async def update_schedule_config(config: ScheduleConfiguration):
         # Convert to dict for JSON serialization
         config_dict = config.model_dump()
 
-        # Write to file with pretty formatting
+        # Write to file, one period per line (see dump_schedule_json)
         with open(SCHEDULE_FILE, 'w') as f:
-            json.dump(config_dict, f, indent=2)
+            f.write(dump_schedule_json(config_dict))
 
         logger.info(
             f"✓ Schedule configuration updated: enabled={config.enabled}, "
