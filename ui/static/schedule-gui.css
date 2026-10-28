@@ -76,7 +76,6 @@
 }
 
 /* Buttons follow .mode-btn; 44px min target for touch */
-.sg-back,
 .sg-refresh {
     font-family: inherit;
     font-size: 14px;
@@ -97,9 +96,6 @@
     transition: all 0.3s ease;
 }
 
-.sg-back { margin-left: auto; }
-
-.sg-back:hover,
 .sg-refresh:hover {
     background: var(--bg-elevated);
     border-color: var(--accent-color);
