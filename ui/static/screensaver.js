@@ -1,5 +1,5 @@
 /**
- * Screensaver module - Vanta.js HALO effect with inactivity timeout
+ * Screensaver module - Vanta.js WAVES effect with inactivity timeout
  * Kiosk mode: Starts with screensaver active, returns after 60s inactivity
  */
 
@@ -61,21 +61,27 @@ class Screensaver {
         this.isActive = true;
         this.overlay.classList.add('active');
 
-        // Initialize Vanta.js HALO effect
+        // Initialize Vanta.js WAVES effect.
+        // Tuned dark and slow for the AMOLED kiosk panel: a deep colour keeps the
+        // mean pixel luminance low, low shininess avoids bright fixed specular
+        // highlights, and the slow speed cuts GPU load on an old phone. The
+        // *Controls flags stay false so a touch wakes the screensaver instead of
+        // being swallowed as a camera gesture.
         if (window.VANTA && window.THREE) {
-            this.vantaEffect = window.VANTA.HALO({
+            this.vantaEffect = window.VANTA.WAVES({
                 el: '#screensaver-overlay',
                 mouseControls: false,
                 touchControls: false,
                 gyroControls: false,
                 minHeight: 200.00,
                 minWidth: 200.00,
-                baseColor: 0x0,
-                backgroundColor: 0x0,
-                amplitudeFactor: 1.0,
-                xOffset: 0.0,
-                yOffset: 0.0,
-                size: 1.5
+                scale: 1.00,
+                scaleMobile: 1.00,
+                color: 0x0a1a2a,
+                shininess: 15.00,
+                waveHeight: 18.00,
+                waveSpeed: 0.55,
+                zoom: 0.85
             });
         }
 
@@ -149,7 +155,7 @@ let screensaver;
 
 export function initScreensaver() {
     screensaver = new Screensaver();
-    console.log('Screensaver initialized (activates after 2 minutes of inactivity)');
+    console.log(`Screensaver initialized (activates after ${INACTIVITY_TIMEOUT / 1000}s of inactivity)`);
 
     // Expose for debugging
     window.screensaver = screensaver;

@@ -46,14 +46,28 @@ For a **critical home automation system** controlling heating infrastructure, **
 - **Homepage**: https://threejs.org/
 - **Purpose**: 3D graphics library required by Vanta.js for WebGL rendering
 
-### Vanta.js HALO Effect
+### Vanta.js WAVES Effect (in use)
+- **File**: `vanta.waves.min.js`
+- **Size**: 12 KB (minified)
+- **Version**: 0.5.24
+- **License**: MIT
+- **Source**: https://cdn.jsdelivr.net/npm/vanta@0.5.24/dist/vanta.waves.min.js
+- **SHA256**: `60a30382a898ae570dd0e88ac903fac9273fd188ae8c8d1984200b9ebd89237d`
+- **Homepage**: https://www.vantajs.com/?effect=waves
+- **Purpose**: Animated WAVES background effect for the screensaver
+
+### Vanta.js HALO Effect (retained, not loaded)
 - **File**: `vanta.halo.min.js`
 - **Size**: 21 KB (minified)
 - **Version**: 0.5.24
 - **License**: MIT
 - **Source**: https://cdn.jsdelivr.net/npm/vanta@0.5.24/dist/vanta.halo.min.js
 - **Homepage**: https://www.vantajs.com/
-- **Purpose**: Animated HALO background effect for screensaver
+- **Purpose**: The previous screensaver effect. Replaced by WAVES because HALO
+  renders a large bright ring in a fixed screen position, which ages an AMOLED
+  kiosk panel unevenly. Kept on disk so the effect can be swapped back by
+  changing the script tag in `index.html` and the `VANTA.*` call in
+  `screensaver.js` - two lines, no rebuild.
 
 ---
 
