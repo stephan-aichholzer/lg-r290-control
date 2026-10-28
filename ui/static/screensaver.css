@@ -98,18 +98,25 @@
     opacity: 0.6;
 }
 
+/* Burn-in drift. Offsets are in vw/vh rather than px so the path scales with
+   whatever panel the kiosk runs on: the previous +/-30px vertical and +/-20px
+   horizontal were smaller than the glyphs themselves (the clock is 72px), so
+   every stroke kept overlapping where it had just been.
+   The element is centred, so an offset of N vw is safe while the text block is
+   narrower than (100 - 2N)vw. At 22vw/16vh that leaves 56vw and 68vh of room,
+   which the block fits into at both the desktop and the <=768px font sizes. */
 @keyframes screensaverFloat {
     0%, 100% {
-        transform: translate(-50%, -50%) translateY(0px) translateX(0px);
+        transform: translate(-50%, -50%) translate(0, 0);
     }
     25% {
-        transform: translate(-50%, -50%) translateY(-30px) translateX(20px);
+        transform: translate(-50%, -50%) translate(22vw, -16vh);
     }
     50% {
-        transform: translate(-50%, -50%) translateY(0px) translateX(-20px);
+        transform: translate(-50%, -50%) translate(-22vw, 4vh);
     }
     75% {
-        transform: translate(-50%, -50%) translateY(30px) translateX(15px);
+        transform: translate(-50%, -50%) translate(-12vw, 16vh);
     }
 }
 
