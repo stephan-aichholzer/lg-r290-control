@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <!-- Served from /schedule/gui, so relative asset paths need a base. Keeping
+         them relative means this page and index.html reference assets alike. -->
+    <base href="/">
+    <title>Heating Schedule</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="schedule-gui.css">
+</head>
+<body class="schedule-page">
+    <div class="sg-wrap">
+        <header class="sg-header">
+            <div class="sg-header-main">
+                <h1>Heating Schedule</h1>
+                <p class="sg-subtitle">
+                    Read-only view of <code>schedule.json</code>. Applies to
+                    <strong>AUTO</strong> mode only.
+                </p>
+            </div>
+            <div class="sg-header-side">
+                <span class="sg-badge" id="sg-enabled">&mdash;</span>
+                <span class="sg-now" id="sg-now">&mdash;</span>
+                <a class="sg-back" href="/">&larr; Control</a>
+            </div>
+        </header>
+
+        <div class="sg-notice sg-notice-error" id="sg-error" hidden></div>
+        <div class="sg-checks" id="sg-checks" hidden></div>
+
+        <main id="sg-patterns" class="sg-patterns">
+            <p class="sg-loading">Loading schedule&hellip;</p>
+        </main>
+
+        <footer class="sg-footer">
+            <span id="sg-updated">&mdash;</span>
+            <button type="button" class="sg-refresh" id="sg-refresh">Refresh</button>
+        </footer>
+    </div>
+
+    <script type="module" src="schedule-gui.js"></script>
+</body>
+</html>
