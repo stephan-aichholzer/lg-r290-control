@@ -190,7 +190,10 @@ show_temperatures() {
             echo -e "  ${BOLD}Water Pressure:${NC} ${MAGENTA}${water_pressure} bar${NC}"
 
             # Calculate delta
-            local delta=$(echo "$flow - $return_temp" | bc 2>/dev/null || echo "N/A")
+            local delta="N/A"
+            if [[ "$flow" =~ ^-?[0-9]+\.?[0-9]*$ && "$return_temp" =~ ^-?[0-9]+\.?[0-9]*$ ]]; then
+                delta=$(awk -v f="$flow" -v r="$return_temp" 'BEGIN{printf "%.1f", f - r}')
+            fi
             if [ "$delta" != "N/A" ]; then
                 echo ""
                 echo -e "  ${BOLD}ΔT (Flow-Return):${NC} ${delta}°C"
